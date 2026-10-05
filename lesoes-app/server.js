@@ -15,6 +15,10 @@ const PROD = process.env.NODE_ENV === 'production';
 const TRUST_PROXY = process.env.TRUST_PROXY === '1' || !!process.env.VERCEL;
 const MAX_PHOTO = 4 * 1024 * 1024; // limite de corpo das funções da Vercel é 4,5 MB
 const SESSION_MS = 12 * 60 * 60 * 1000;
+if (process.env.VERCEL) {
+  const falta = [(!process.env.DATABASE_URL && !process.env.POSTGRES_URL) && 'banco Postgres (DATABASE_URL)', !process.env.BLOB_READ_WRITE_TOKEN && 'Vercel Blob (BLOB_READ_WRITE_TOKEN)'].filter(Boolean);
+  if (falta.length) throw new Error(`Configuração incompleta na Vercel: conecte ao projeto o(s) recurso(s): ${falta.join(', ')}.`);
+}
 if (!process.env.DATABASE_URL && !process.env.POSTGRES_URL) fs.mkdirSync(DATA_DIR, { recursive: true });
 const db = await openDb(path.join(DATA_DIR, 'lesoes.db'));
 const storage = await openStorage(PHOTO_DIR);
