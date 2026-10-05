@@ -1,241 +1,349 @@
-// Servidor sem dependências externas: HTTP + armazenamento em JSON + fotos em disco.
+// Servidor sem dependências externas: HTTP + SQLite (node:sqlite) + fotos em disco.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { openDb } from './db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const PHOTO_DIR = path.join(DATA_DIR, 'photos');
-const DB_FILE = path.join(DATA_DIR, 'db.json');
 const PUBLIC_DIR = path.join(__dirname, 'public');
+const PROD = process.env.NODE_ENV === 'production';
+const TRUST_PROXY = process.env.TRUST_PROXY === '1';
 const MAX_PHOTO = 10 * 1024 * 1024;
+const SESSION_MS = 12 * 60 * 60 * 1000;
 fs.mkdirSync(PHOTO_DIR, { recursive: true });
+const db = openDb(path.join(DATA_DIR, 'lesoes.db'));
 
-// ---------- Persistência ----------
-const hash = (pw, salt = crypto.randomBytes(16).toString('hex')) =>
-  `${salt}:${crypto.scryptSync(pw, salt, 32).toString('hex')}`;
-const checkPw = (pw, stored) => {
-  const [salt, h] = stored.split(':');
-  const a = Buffer.from(hash(pw, salt).split(':')[1], 'hex');
-  return crypto.timingSafeEqual(a, Buffer.from(h, 'hex'));
-};
-
-let db;
-if (fs.existsSync(DB_FILE)) db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-else {
-  db = {
-    users: [
-      { id: 'u1', nome: 'Enf. Examinador (demo)', login: 'examinador', senha: hash('exam123'), perfil: 'examinador' },
-      { id: 'u2', nome: 'Estomaterapeuta (demo)', login: 'estomaterapeuta', senha: hash('estoma123'), perfil: 'estomaterapeuta' },
-    ],
-    pacientes: [],
-    registros: [],
-  };
-}
-const save = () => {
-  const tmp = DB_FILE + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
-  fs.renameSync(tmp, DB_FILE);
-};
-save();
-
-const sessions = new Map(); // token -> userId
+// ---------- Utilidades ----------
 const id = () => crypto.randomBytes(8).toString('hex');
 const now = () => new Date().toISOString();
+const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
+const hash = (pw, salt = crypto.randomBytes(16).toString('hex')) => `${salt}:${crypto.scryptSync(pw, salt, 32).toString('hex')}`;
+const checkPw = (pw, stored) => {
+  const [salt, h] = stored.split(':');
+  return crypto.timingSafeEqual(Buffer.from(hash(pw, salt).split(':')[1], 'hex'), Buffer.from(h, 'hex'));
+};
+const str = (v, max = 500) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+const senhaValida = (s) => typeof s === 'string' && s.length >= 8 && s.length <= 200;
+const PERFIS = ['admin', 'examinador', 'estomaterapeuta'];
+const ESTAGIOS = ['1', '2', '3', '4', 'nao_classificavel', 'tissular_profunda'];
+const STATUS = ['rascunho', 'enviado', 'avaliado'];
 
-// ---------- Utilidades HTTP ----------
+const audit = (user, acao, alvo = null) =>
+  db.run('INSERT INTO auditoria (em, user_id, user_nome, acao, alvo) VALUES (?,?,?,?,?)', now(), user?.id ?? null, user?.nome ?? null, acao, alvo);
+
+// Aviso opcional por webhook (Slack/Teams/Discord...). Nunca envia dados do paciente.
+const notify = (text) => {
+  const url = process.env.NOTIFY_WEBHOOK_URL;
+  if (url) fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, content: text }) }).catch(() => {});
+};
+
+// ---------- Usuários iniciais ----------
+function seed() {
+  if (db.get('SELECT 1 x FROM users LIMIT 1')) return;
+  const add = (nome, login, senha, perfil) =>
+    db.run('INSERT INTO users (id,nome,login,senha,perfil,criado_em) VALUES (?,?,?,?,?,?)', id(), nome, login, hash(senha), perfil, now());
+  if (PROD) {
+    const pw = process.env.ADMIN_PASSWORD;
+    if (!senhaValida(pw) || pw.length < 10) { console.error('Defina ADMIN_PASSWORD (mín. 10 caracteres) para o primeiro acesso em produção.'); process.exit(1); }
+    add('Administrador', 'admin', pw, 'admin');
+  } else {
+    add('Administrador (demo)', 'admin', 'admin1234', 'admin');
+    add('Enf. Examinador (demo)', 'examinador', 'exam1234', 'examinador');
+    add('Estomaterapeuta (demo)', 'estomaterapeuta', 'estoma1234', 'estomaterapeuta');
+  }
+}
+seed();
+
+// ---------- HTTP ----------
+const SEC = {
+  'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer',
+  'Content-Security-Policy': "default-src 'self'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'",
+  ...(PROD ? { 'Strict-Transport-Security': 'max-age=31536000' } : {}),
+};
 const send = (res, status, body, headers = {}) => {
-  const isBuf = Buffer.isBuffer(body);
-  res.writeHead(status, {
-    'Content-Type': isBuf ? 'application/octet-stream' : 'application/json; charset=utf-8',
-    'X-Content-Type-Options': 'nosniff',
-    ...headers,
-  });
-  res.end(isBuf ? body : JSON.stringify(body));
+  const buf = Buffer.isBuffer(body);
+  res.writeHead(status, { 'Content-Type': buf ? 'application/octet-stream' : 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...SEC, ...headers });
+  res.end(buf ? body : JSON.stringify(body));
 };
 const fail = (res, status, erro) => send(res, status, { erro });
-
-const readBody = (req, limit) =>
-  new Promise((resolve, reject) => {
-    const chunks = [];
-    let size = 0;
-    req.on('data', (c) => {
-      size += c.length;
-      if (size > limit) { reject(Object.assign(new Error('Arquivo muito grande'), { status: 413 })); req.destroy(); return; }
-      chunks.push(c);
-    });
-    req.on('end', () => resolve(Buffer.concat(chunks)));
-    req.on('error', reject);
+const readBody = (req, limit) => new Promise((resolve, reject) => {
+  const chunks = []; let size = 0;
+  req.on('data', (c) => {
+    size += c.length;
+    if (size > limit) { reject(Object.assign(new Error('Arquivo muito grande'), { status: 413 })); req.destroy(); return; }
+    chunks.push(c);
   });
+  req.on('end', () => resolve(Buffer.concat(chunks)));
+  req.on('error', reject);
+});
 const readJson = async (req) => {
   const buf = await readBody(req, 1024 * 1024);
-  try { return buf.length ? JSON.parse(buf.toString('utf8')) : {}; }
-  catch { throw Object.assign(new Error('JSON inválido'), { status: 400 }); }
+  try { return buf.length ? JSON.parse(buf.toString('utf8')) : {}; } catch { throw Object.assign(new Error('JSON inválido'), { status: 400 }); }
 };
+const clientIp = (req) => (TRUST_PROXY && req.headers['x-forwarded-for']?.split(',')[0].trim()) || req.socket.remoteAddress;
 
-const publicUser = (u) => ({ id: u.id, nome: u.nome, login: u.login, perfil: u.perfil });
+// Bloqueio de força bruta no login: 5 falhas => 15 min
+const tentativas = new Map();
+const MAX_TENT = 5, BLOQUEIO_MS = 15 * 60 * 1000;
+
+// ---------- Mapeamento ----------
+const pacOut = (p) => ({
+  id: p.id, nome: p.nome, prontuario: p.prontuario, dataNascimento: p.data_nascimento, sexo: p.sexo, leito: p.leito,
+  comorbidades: p.comorbidades, braden: p.braden, consentimentoPor: p.consentimento_por, consentimentoEm: p.consentimento_em,
+  criadoEm: p.criado_em, totalRegistros: p.total,
+});
+const REG_SQL = 'SELECT r.*, p.nome p_nome, p.prontuario p_pront, p.leito p_leito FROM registros r JOIN pacientes p ON p.id = r.paciente_id';
+const regOut = (r, user) => ({
+  id: r.id, pacienteId: r.paciente_id, local: r.local, observacoes: r.observacoes, status: r.status,
+  foto: r.foto_arquivo ? { tipo: r.foto_tipo, enviadaEm: r.foto_em } : null,
+  criadoPor: r.criado_por, criadoPorNome: r.criado_por_nome, criadoEm: r.criado_em, enviadoEm: r.enviado_em,
+  avaliacao: r.avaliacao ? JSON.parse(r.avaliacao) : null,
+  novo: user.perfil === 'examinador' && r.status === 'avaliado' && !r.avaliacao_visto && r.criado_por === user.id,
+  paciente: { id: r.paciente_id, nome: r.p_nome, prontuario: r.p_pront, leito: r.p_leito },
+});
+const userOut = (u) => ({ id: u.id, nome: u.nome, login: u.login, perfil: u.perfil, ativo: !!u.ativo, criadoEm: u.criado_em });
+
+const sigOk = (b, t) => t === 'image/jpeg' ? b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff
+  : t === 'image/png' ? b.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+  : b.subarray(0, 4).toString() === 'RIFF' && b.subarray(8, 12).toString() === 'WEBP';
+
 const authUser = (req) => {
   const token = (req.headers.authorization || '').replace(/^Bearer /, '');
-  const uid = sessions.get(token);
-  return db.users.find((u) => u.id === uid) || null;
+  if (!token) return null;
+  return db.get('SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expira_em > ? AND u.ativo = 1', sha(token), Date.now()) || null;
 };
-
-const str = (v, max = 500) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
-const ESTAGIOS = ['1', '2', '3', '4', 'nao_classificavel', 'tissular_profunda'];
-const SEGUIMENTOS = ['rascunho', 'enviado', 'avaliado'];
-
-const withPaciente = (r) => {
-  const p = db.pacientes.find((x) => x.id === r.pacienteId);
-  return { ...r, paciente: p ? { id: p.id, nome: p.nome, prontuario: p.prontuario, leito: p.leito } : null };
+const startSession = (userId) => {
+  db.run('DELETE FROM sessions WHERE expira_em < ?', Date.now());
+  const token = crypto.randomBytes(24).toString('hex');
+  db.run('INSERT INTO sessions VALUES (?,?,?)', sha(token), userId, Date.now() + SESSION_MS);
+  return token;
 };
 
 // ---------- Rotas ----------
 async function handleApi(req, res, url) {
-  const { pathname } = url;
-  const method = req.method;
+  const { pathname } = url, method = req.method;
   let m;
 
   if (method === 'POST' && pathname === '/api/login') {
     const { login, senha } = await readJson(req);
-    const u = db.users.find((x) => x.login === str(login, 60));
-    if (!u || typeof senha !== 'string' || !checkPw(senha, u.senha)) return fail(res, 401, 'Usuário ou senha inválidos');
-    const token = crypto.randomBytes(24).toString('hex');
-    sessions.set(token, u.id);
-    return send(res, 200, { token, usuario: publicUser(u) });
+    const key = `${clientIp(req)}|${str(login, 60).toLowerCase()}`;
+    const t = tentativas.get(key);
+    if (t && t.n >= MAX_TENT && t.ate > Date.now()) return fail(res, 429, 'Muitas tentativas. Aguarde 15 minutos.');
+    const u = db.get('SELECT * FROM users WHERE login = ? AND ativo = 1', str(login, 60));
+    if (!u || typeof senha !== 'string' || !checkPw(senha, u.senha)) {
+      tentativas.set(key, { n: (t && t.ate > Date.now() ? t.n : 0) + 1, ate: Date.now() + BLOQUEIO_MS });
+      audit(null, 'login_falhou', str(login, 60));
+      return fail(res, 401, 'Usuário ou senha inválidos');
+    }
+    tentativas.delete(key);
+    audit(u, 'login');
+    return send(res, 200, { token: startSession(u.id), usuario: userOut(u) });
   }
 
   const user = authUser(req);
   if (!user) return fail(res, 401, 'Não autenticado');
-  const isExam = user.perfil === 'examinador';
-  const isEstoma = user.perfil === 'estomaterapeuta';
+  const perfil = user.perfil;
+  const isAdmin = perfil === 'admin', isExam = perfil === 'examinador', isEstoma = perfil === 'estomaterapeuta';
+  const clinico = isExam || isEstoma;
+  const deny = (msg, ok) => (ok ? false : (fail(res, 403, msg), true));
 
-  if (method === 'GET' && pathname === '/api/me') return send(res, 200, publicUser(user));
+  if (method === 'GET' && pathname === '/api/me') return send(res, 200, userOut(user));
   if (method === 'POST' && pathname === '/api/logout') {
-    sessions.delete((req.headers.authorization || '').replace(/^Bearer /, ''));
+    db.run('DELETE FROM sessions WHERE token_hash = ?', sha((req.headers.authorization || '').replace(/^Bearer /, '')));
+    return send(res, 200, { ok: true });
+  }
+  if (method === 'POST' && pathname === '/api/me/senha') {
+    const { atual, nova } = await readJson(req);
+    if (typeof atual !== 'string' || !checkPw(atual, user.senha)) return fail(res, 400, 'Senha atual incorreta');
+    if (!senhaValida(nova)) return fail(res, 400, 'A nova senha deve ter ao menos 8 caracteres');
+    db.run('UPDATE users SET senha = ? WHERE id = ?', hash(nova), user.id);
+    const cur = sha((req.headers.authorization || '').replace(/^Bearer /, ''));
+    db.run('DELETE FROM sessions WHERE user_id = ? AND token_hash != ?', user.id, cur);
+    audit(user, 'senha_alterada');
     return send(res, 200, { ok: true });
   }
 
-  // Pacientes
-  if (pathname === '/api/pacientes' && method === 'GET') {
-    const q = (url.searchParams.get('q') || '').toLowerCase();
-    const list = db.pacientes
-      .filter((p) => !q || p.nome.toLowerCase().includes(q) || p.prontuario.toLowerCase().includes(q))
-      .map((p) => ({ ...p, totalRegistros: db.registros.filter((r) => r.pacienteId === p.id).length }));
-    return send(res, 200, list);
-  }
-  if (pathname === '/api/pacientes' && method === 'POST') {
-    if (!isExam) return fail(res, 403, 'Apenas o examinador cadastra pacientes');
-    const b = await readJson(req);
-    const nome = str(b.nome, 120);
-    const prontuario = str(b.prontuario, 40);
-    if (!nome || !prontuario) return fail(res, 400, 'Nome e prontuário são obrigatórios');
-    if (db.pacientes.some((p) => p.prontuario === prontuario)) return fail(res, 409, 'Prontuário já cadastrado');
-    const nasc = str(b.dataNascimento, 10);
-    if (nasc && !/^\d{4}-\d{2}-\d{2}$/.test(nasc)) return fail(res, 400, 'Data de nascimento inválida');
-    const p = {
-      id: id(), nome, prontuario, dataNascimento: nasc,
-      sexo: str(b.sexo, 20), leito: str(b.leito, 40),
-      comorbidades: str(b.comorbidades, 500), braden: str(b.braden, 5),
-      criadoPor: user.id, criadoEm: now(),
-    };
-    db.pacientes.push(p); save();
-    return send(res, 201, p);
-  }
-  if ((m = pathname.match(/^\/api\/pacientes\/([\w]+)$/)) && method === 'GET') {
-    const p = db.pacientes.find((x) => x.id === m[1]);
-    if (!p) return fail(res, 404, 'Paciente não encontrado');
-    const registros = db.registros.filter((r) => r.pacienteId === p.id)
-      .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm)).map(withPaciente);
-    return send(res, 200, { ...p, registros });
+  // Avisos (contadores consultados periodicamente pelo app)
+  if (method === 'GET' && pathname === '/api/notificacoes') {
+    if (isEstoma) return send(res, 200, { total: db.get("SELECT COUNT(*) n FROM registros WHERE status = 'enviado'").n, tipo: 'casos' });
+    if (isExam) return send(res, 200, { total: db.get("SELECT COUNT(*) n FROM registros WHERE status = 'avaliado' AND avaliacao_visto = 0 AND criado_por = ?", user.id).n, tipo: 'devolutivas' });
+    return send(res, 200, { total: 0, tipo: '' });
   }
 
-  // Registros de lesão
-  if (pathname === '/api/registros' && method === 'GET') {
-    const status = url.searchParams.get('status');
-    let list = db.registros;
-    if (status && SEGUIMENTOS.includes(status)) list = list.filter((r) => r.status === status);
-    // estomaterapeuta nunca vê rascunhos
-    if (isEstoma) list = list.filter((r) => r.status !== 'rascunho');
-    list = list.slice().sort((a, b) => (b.enviadoEm || b.criadoEm).localeCompare(a.enviadoEm || a.criadoEm));
-    return send(res, 200, list.map(withPaciente));
+  // ----- Administração -----
+  if (pathname.startsWith('/api/usuarios') || pathname === '/api/auditoria') {
+    if (deny('Apenas o administrador', isAdmin)) return;
+    if (method === 'GET' && pathname === '/api/usuarios') return send(res, 200, db.all('SELECT * FROM users ORDER BY nome').map(userOut));
+    if (method === 'GET' && pathname === '/api/auditoria') return send(res, 200, db.all('SELECT * FROM auditoria ORDER BY id DESC LIMIT 200'));
+    if (method === 'POST' && pathname === '/api/usuarios') {
+      const b = await readJson(req);
+      const nome = str(b.nome, 120), login = str(b.login, 60).toLowerCase();
+      if (!nome || !/^[a-z0-9._-]{3,60}$/.test(login)) return fail(res, 400, 'Informe nome e login (3+ letras minúsculas, números, . _ -)');
+      if (!PERFIS.includes(b.perfil)) return fail(res, 400, 'Perfil inválido');
+      if (!senhaValida(b.senha)) return fail(res, 400, 'A senha deve ter ao menos 8 caracteres');
+      if (db.get('SELECT 1 x FROM users WHERE login = ?', login)) return fail(res, 409, 'Login já existe');
+      const uid = id();
+      db.run('INSERT INTO users (id,nome,login,senha,perfil,criado_em) VALUES (?,?,?,?,?,?)', uid, nome, login, hash(b.senha), b.perfil, now());
+      audit(user, 'usuario_criado', `${login} (${b.perfil})`);
+      return send(res, 201, userOut(db.get('SELECT * FROM users WHERE id = ?', uid)));
+    }
+    if ((m = pathname.match(/^\/api\/usuarios\/(\w+)$/)) && method === 'PATCH') {
+      const u = db.get('SELECT * FROM users WHERE id = ?', m[1]);
+      if (!u) return fail(res, 404, 'Usuário não encontrado');
+      const b = await readJson(req);
+      if (u.id === user.id && (b.ativo === false || (b.perfil && b.perfil !== u.perfil))) return fail(res, 400, 'Você não pode desativar nem rebaixar a si mesmo');
+      if (b.perfil !== undefined && !PERFIS.includes(b.perfil)) return fail(res, 400, 'Perfil inválido');
+      if (b.senha !== undefined && !senhaValida(b.senha)) return fail(res, 400, 'A senha deve ter ao menos 8 caracteres');
+      const nome = b.nome !== undefined ? str(b.nome, 120) : u.nome;
+      if (!nome) return fail(res, 400, 'Nome inválido');
+      db.run('UPDATE users SET nome=?, perfil=?, ativo=?, senha=? WHERE id=?', nome, b.perfil ?? u.perfil,
+        b.ativo === undefined ? u.ativo : (b.ativo ? 1 : 0), b.senha ? hash(b.senha) : u.senha, u.id);
+      if (b.ativo === false || b.senha) db.run('DELETE FROM sessions WHERE user_id = ?', u.id);
+      audit(user, 'usuario_alterado', u.login);
+      return send(res, 200, userOut(db.get('SELECT * FROM users WHERE id = ?', u.id)));
+    }
   }
-  if (pathname === '/api/registros' && method === 'POST') {
-    if (!isExam) return fail(res, 403, 'Apenas o examinador cria registros');
+
+  // ----- Pacientes -----
+  if (pathname === '/api/pacientes' && method === 'GET') {
+    const q = `%${(url.searchParams.get('q') || '').toLowerCase()}%`;
+    if (isAdmin) return send(res, 200, db.all('SELECT id, nome, prontuario FROM pacientes WHERE lower(nome) LIKE ? OR lower(prontuario) LIKE ? ORDER BY nome LIMIT 200', q, q));
+    const filtro = isEstoma ? "AND r.status != 'rascunho'" : '';
+    const rows = db.all(`SELECT p.*, (SELECT COUNT(*) FROM registros r WHERE r.paciente_id = p.id ${filtro}) total
+      FROM pacientes p WHERE lower(p.nome) LIKE ? OR lower(p.prontuario) LIKE ? ORDER BY p.nome LIMIT 200`, q, q);
+    return send(res, 200, rows.map(pacOut));
+  }
+  if (pathname === '/api/pacientes' && method === 'POST') {
+    if (deny('Apenas o examinador cadastra pacientes', isExam)) return;
     const b = await readJson(req);
-    if (!db.pacientes.some((p) => p.id === b.pacienteId)) return fail(res, 400, 'Paciente inválido');
-    const r = {
-      id: id(), pacienteId: b.pacienteId, local: str(b.local, 100),
-      observacoes: str(b.observacoes, 1000), status: 'rascunho', foto: null,
-      criadoPor: user.id, criadoPorNome: user.nome, criadoEm: now(),
-      enviadoEm: null, avaliacao: null,
-    };
-    db.registros.push(r); save();
-    return send(res, 201, withPaciente(r));
+    const nome = str(b.nome, 120), prontuario = str(b.prontuario, 40), consPor = str(b.consentimentoPor, 120);
+    if (!nome || !prontuario) return fail(res, 400, 'Nome e prontuário são obrigatórios');
+    if (b.consentimento !== true || !consPor) return fail(res, 400, 'É necessário registrar o consentimento (paciente ou responsável legal)');
+    if (db.get('SELECT 1 x FROM pacientes WHERE prontuario = ?', prontuario)) return fail(res, 409, 'Prontuário já cadastrado');
+    const nasc = str(b.dataNascimento, 10);
+    if (nasc && !/^\d{4}-\d{2}-\d{2}$/.test(nasc)) return fail(res, 400, 'Data de nascimento inválida');
+    const pid = id();
+    db.run('INSERT INTO pacientes VALUES (?,?,?,?,?,?,?,?,?,?,?,?)', pid, nome, prontuario, nasc, str(b.sexo, 20), str(b.leito, 40),
+      str(b.comorbidades, 500), str(b.braden, 5), consPor, now(), user.id, now());
+    audit(user, 'paciente_criado', prontuario);
+    return send(res, 201, pacOut(db.get('SELECT p.*, 0 total FROM pacientes p WHERE id = ?', pid)));
   }
-  if ((m = pathname.match(/^\/api\/registros\/(\w+)$/)) && method === 'GET') {
-    const r = db.registros.find((x) => x.id === m[1]);
-    if (!r || (isEstoma && r.status === 'rascunho')) return fail(res, 404, 'Registro não encontrado');
-    return send(res, 200, withPaciente(r));
+  if ((m = pathname.match(/^\/api\/pacientes\/(\w+)$/))) {
+    const p = db.get('SELECT p.*, 0 total FROM pacientes p WHERE id = ?', m[1]);
+    if (!p) return fail(res, 404, 'Paciente não encontrado');
+    if (method === 'GET') {
+      if (deny('Sem acesso', clinico)) return;
+      const filtro = isEstoma ? "AND r.status != 'rascunho'" : '';
+      const regs = db.all(`${REG_SQL} WHERE r.paciente_id = ? ${filtro} ORDER BY r.criado_em DESC`, p.id).map((r) => regOut(r, user));
+      audit(user, 'paciente_visualizado', p.prontuario);
+      return send(res, 200, { ...pacOut(p), registros: regs });
+    }
+    if (method === 'DELETE') { // direito de eliminação (LGPD)
+      if (deny('Apenas o administrador exclui pacientes', isAdmin)) return;
+      for (const r of db.all('SELECT foto_arquivo f FROM registros WHERE paciente_id = ? AND foto_arquivo IS NOT NULL', p.id)) fs.rmSync(path.join(PHOTO_DIR, r.f), { force: true });
+      db.run('DELETE FROM pacientes WHERE id = ?', p.id);
+      audit(user, 'paciente_excluido', p.prontuario);
+      return send(res, 200, { ok: true });
+    }
   }
-  if ((m = pathname.match(/^\/api\/registros\/(\w+)\/foto$/)) && method === 'PUT') {
-    if (!isExam) return fail(res, 403, 'Apenas o examinador envia fotos');
-    const r = db.registros.find((x) => x.id === m[1]);
-    if (!r) return fail(res, 404, 'Registro não encontrado');
-    if (r.status !== 'rascunho') return fail(res, 409, 'Registro já enviado; não é possível trocar a foto');
-    const type = (req.headers['content-type'] || '').split(';')[0];
-    const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[type];
-    if (!ext) return fail(res, 415, 'Use imagem JPEG, PNG ou WebP');
-    const buf = await readBody(req, MAX_PHOTO);
-    if (!buf.length) return fail(res, 400, 'Imagem vazia');
-    if (r.foto) fs.rmSync(path.join(PHOTO_DIR, r.foto.arquivo), { force: true });
-    const arquivo = `${r.id}-${Date.now()}.${ext}`;
-    fs.writeFileSync(path.join(PHOTO_DIR, arquivo), buf);
-    r.foto = { arquivo, tipo: type, enviadaEm: now() };
-    save();
-    return send(res, 200, withPaciente(r));
-  }
-  if ((m = pathname.match(/^\/api\/registros\/(\w+)\/foto$/)) && method === 'GET') {
-    const r = db.registros.find((x) => x.id === m[1]);
-    if (!r || !r.foto || (isEstoma && r.status === 'rascunho')) return fail(res, 404, 'Foto não encontrada');
-    const buf = fs.readFileSync(path.join(PHOTO_DIR, r.foto.arquivo));
-    return send(res, 200, buf, { 'Content-Type': r.foto.tipo, 'Cache-Control': 'private, max-age=3600' });
-  }
-  if ((m = pathname.match(/^\/api\/registros\/(\w+)\/enviar$/)) && method === 'POST') {
-    if (!isExam) return fail(res, 403, 'Apenas o examinador envia para a estomaterapeuta');
-    const r = db.registros.find((x) => x.id === m[1]);
-    if (!r) return fail(res, 404, 'Registro não encontrado');
-    if (r.status !== 'rascunho') return fail(res, 409, 'Registro já foi enviado');
-    if (!r.foto) return fail(res, 400, 'Anexe a foto da lesão antes de enviar');
-    r.status = 'enviado'; r.enviadoEm = now(); save();
-    return send(res, 200, withPaciente(r));
-  }
-  if ((m = pathname.match(/^\/api\/registros\/(\w+)\/avaliacao$/)) && method === 'POST') {
-    if (!isEstoma) return fail(res, 403, 'Apenas a estomaterapeuta avalia');
-    const r = db.registros.find((x) => x.id === m[1]);
-    if (!r || r.status === 'rascunho') return fail(res, 404, 'Registro não encontrado');
-    const b = await readJson(req);
-    const tratamento = str(b.tratamento, 2000);
-    const orientacoes = str(b.orientacoes, 2000);
-    if (!tratamento || !orientacoes) return fail(res, 400, 'Informe o tratamento e as orientações');
-    const estagio = str(b.estagio, 30);
-    if (estagio && !ESTAGIOS.includes(estagio)) return fail(res, 400, 'Estágio inválido');
-    const retorno = b.retornoDias === '' || b.retornoDias == null ? null : Number(b.retornoDias);
-    if (retorno !== null && (!Number.isInteger(retorno) || retorno < 0 || retorno > 365)) return fail(res, 400, 'Prazo de reavaliação inválido');
-    r.avaliacao = {
-      estagio, tratamento, orientacoes, retornoDias: retorno,
-      avaliadoPor: user.id, avaliadoPorNome: user.nome,
-      avaliadoEm: now(),
-    };
-    r.status = 'avaliado'; save();
-    return send(res, 200, withPaciente(r));
+
+  // ----- Registros de lesão -----
+  if (pathname.startsWith('/api/registros')) {
+    if (deny('Sem acesso', clinico)) return;
+    const visivel = (r) => r && !(isEstoma && r.status === 'rascunho');
+    if (pathname === '/api/registros' && method === 'GET') {
+      const status = url.searchParams.get('status');
+      const where = [], params = [];
+      if (STATUS.includes(status)) { where.push('r.status = ?'); params.push(status); }
+      if (isEstoma) where.push("r.status != 'rascunho'");
+      const rows = db.all(`${REG_SQL} ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY COALESCE(r.enviado_em, r.criado_em) DESC LIMIT 300`, ...params);
+      return send(res, 200, rows.map((r) => regOut(r, user)));
+    }
+    if (pathname === '/api/registros' && method === 'POST') {
+      if (deny('Apenas o examinador cria registros', isExam)) return;
+      const b = await readJson(req);
+      if (!db.get('SELECT 1 x FROM pacientes WHERE id = ?', b.pacienteId)) return fail(res, 400, 'Paciente inválido');
+      const rid = id();
+      db.run("INSERT INTO registros (id,paciente_id,local,observacoes,status,criado_por,criado_por_nome,criado_em) VALUES (?,?,?,?, 'rascunho',?,?,?)",
+        rid, b.pacienteId, str(b.local, 100), str(b.observacoes, 1000), user.id, user.nome, now());
+      audit(user, 'registro_criado', rid);
+      return send(res, 201, regOut(db.get(`${REG_SQL} WHERE r.id = ?`, rid), user));
+    }
+    if ((m = pathname.match(/^\/api\/registros\/(\w+)(?:\/(foto|enviar|avaliacao))?$/))) {
+      const r = db.get(`${REG_SQL} WHERE r.id = ?`, m[1]);
+      const sub = m[2];
+      if (!visivel(r)) return fail(res, 404, 'Registro não encontrado');
+      const reload = () => regOut(db.get(`${REG_SQL} WHERE r.id = ?`, r.id), user);
+
+      if (!sub && method === 'GET') {
+        if (isExam && r.status === 'avaliado' && !r.avaliacao_visto && r.criado_por === user.id) {
+          db.run('UPDATE registros SET avaliacao_visto = 1 WHERE id = ?', r.id);
+        }
+        return send(res, 200, regOut(r, user)); // 'novo' reflete o estado antes de marcar como visto
+      }
+      if (!sub && method === 'DELETE') {
+        if (deny('Apenas o examinador exclui rascunhos', isExam)) return;
+        if (r.status !== 'rascunho') return fail(res, 409, 'Só é possível excluir rascunhos');
+        if (r.foto_arquivo) fs.rmSync(path.join(PHOTO_DIR, r.foto_arquivo), { force: true });
+        db.run('DELETE FROM registros WHERE id = ?', r.id);
+        audit(user, 'rascunho_excluido', r.id);
+        return send(res, 200, { ok: true });
+      }
+      if (sub === 'foto' && method === 'PUT') {
+        if (deny('Apenas o examinador envia fotos', isExam)) return;
+        if (r.status !== 'rascunho') return fail(res, 409, 'Registro já enviado; não é possível trocar a foto');
+        const type = (req.headers['content-type'] || '').split(';')[0];
+        const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[type];
+        if (!ext) return fail(res, 415, 'Use imagem JPEG, PNG ou WebP');
+        const buf = await readBody(req, MAX_PHOTO);
+        if (!buf.length || !sigOk(buf, type)) return fail(res, 400, 'Arquivo de imagem inválido');
+        if (r.foto_arquivo) fs.rmSync(path.join(PHOTO_DIR, r.foto_arquivo), { force: true });
+        const arquivo = `${r.id}-${Date.now()}.${ext}`;
+        fs.writeFileSync(path.join(PHOTO_DIR, arquivo), buf);
+        db.run('UPDATE registros SET foto_arquivo=?, foto_tipo=?, foto_em=? WHERE id=?', arquivo, type, now(), r.id);
+        audit(user, 'foto_anexada', r.id);
+        return send(res, 200, reload());
+      }
+      if (sub === 'foto' && method === 'GET') {
+        if (!r.foto_arquivo) return fail(res, 404, 'Foto não encontrada');
+        audit(user, 'foto_visualizada', r.id);
+        return send(res, 200, fs.readFileSync(path.join(PHOTO_DIR, r.foto_arquivo)), { 'Content-Type': r.foto_tipo, 'Cache-Control': 'private, max-age=300' });
+      }
+      if (sub === 'enviar' && method === 'POST') {
+        if (deny('Apenas o examinador envia para a estomaterapeuta', isExam)) return;
+        if (r.status !== 'rascunho') return fail(res, 409, 'Registro já foi enviado');
+        if (!r.foto_arquivo) return fail(res, 400, 'Anexe a foto da lesão antes de enviar');
+        db.run("UPDATE registros SET status='enviado', enviado_em=? WHERE id=?", now(), r.id);
+        audit(user, 'registro_enviado', r.id);
+        notify('Novo caso de lesão por pressão aguardando avaliação da estomaterapeuta.');
+        return send(res, 200, reload());
+      }
+      if (sub === 'avaliacao' && method === 'POST') {
+        if (deny('Apenas a estomaterapeuta avalia', isEstoma)) return;
+        if (r.status !== 'enviado') return fail(res, 409, 'Este caso já foi avaliado');
+        const b = await readJson(req);
+        const tratamento = str(b.tratamento, 2000), orientacoes = str(b.orientacoes, 2000), estagio = str(b.estagio, 30);
+        if (!tratamento || !orientacoes) return fail(res, 400, 'Informe o tratamento e as orientações');
+        if (estagio && !ESTAGIOS.includes(estagio)) return fail(res, 400, 'Estágio inválido');
+        const ret = b.retornoDias === '' || b.retornoDias == null ? null : Number(b.retornoDias);
+        if (ret !== null && (!Number.isInteger(ret) || ret < 0 || ret > 365)) return fail(res, 400, 'Prazo de reavaliação inválido');
+        const av = { estagio, tratamento, orientacoes, retornoDias: ret, avaliadoPor: user.id, avaliadoPorNome: user.nome, avaliadoEm: now() };
+        db.run("UPDATE registros SET status='avaliado', avaliacao=?, avaliacao_visto=0 WHERE id=?", JSON.stringify(av), r.id);
+        audit(user, 'avaliacao', r.id);
+        notify('Uma devolutiva da estomaterapeuta está disponível.');
+        return send(res, 200, reload());
+      }
+    }
   }
 
   return fail(res, 404, 'Rota não encontrada');
 }
 
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml', '.png': 'image/png' };
 
 export const server = http.createServer(async (req, res) => {
   try {
@@ -243,10 +351,8 @@ export const server = http.createServer(async (req, res) => {
     if (url.pathname.startsWith('/api/')) return await handleApi(req, res, url);
     const rel = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
     const file = path.normalize(path.join(PUBLIC_DIR, rel));
-    if (!file.startsWith(PUBLIC_DIR + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
-      res.writeHead(404); return res.end('Not found');
-    }
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
+    if (!file.startsWith(PUBLIC_DIR + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) { res.writeHead(404, SEC); return res.end('Not found'); }
+    res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache', ...SEC });
     fs.createReadStream(file).pipe(res);
   } catch (e) {
     if (!res.headersSent) fail(res, e.status || 500, e.status ? e.message : 'Erro interno');

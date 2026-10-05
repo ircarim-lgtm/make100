@@ -1,0 +1,25 @@
+# Publicação com HTTPS automático (Let's Encrypt via Caddy).
+# 1) aponte o DNS do seu domínio para o servidor; 2) copie .env.example para .env e preencha; 3) docker compose up -d
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?defina ADMIN_PASSWORD no .env}
+      NOTIFY_WEBHOOK_URL: ${NOTIFY_WEBHOOK_URL:-}
+      TRUST_PROXY: "1"
+    volumes:
+      - dados:/data
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMINIO: ${DOMINIO:?defina DOMINIO no .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on: [app]
+volumes:
+  dados:
+  caddy_data:
