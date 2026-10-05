@@ -1,9 +1,9 @@
-// Armazenamento das fotos: Vercel Blob (privado) quando há BLOB_READ_WRITE_TOKEN, senão disco local.
+// Armazenamento das fotos: Vercel Blob (privado) quando há BLOB_READ_WRITE_TOKEN ou BLOB_STORE_ID (OIDC), senão disco local.
 import fs from 'node:fs';
 import path from 'node:path';
 
 export async function openStorage(dir) {
-  if (process.env.BLOB_READ_WRITE_TOKEN) {
+  if (process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID) {
     const { put, get, del } = await import('@vercel/blob');
     return {
       kind: 'blob',
