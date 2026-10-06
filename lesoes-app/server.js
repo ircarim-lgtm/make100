@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
 import { openStorage } from './storage.js';
 import { relatorioRegistro, relatorioHistorico } from './pdf.js';
+import { iaAtiva, estruturar, contextoValido, MAX_TEXTO } from './ia.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
@@ -129,7 +130,8 @@ const regOut = (r, user) => ({
   novo: user.perfil === 'examinador' && r.status === 'avaliado' && !r.avaliacao_visto && r.criado_por === user.id,
   paciente: { id: r.paciente_id, nome: r.p_nome, prontuario: r.p_pront, leito: r.p_leito },
 });
-const userOut = (u) => ({ id: u.id, nome: u.nome, login: u.login, perfil: u.perfil, ativo: !!u.ativo, criadoEm: u.criado_em });
+const userOut = (u) => ({ id: u.id, nome: u.nome, login: u.login, perfil: u.perfil, ativo: !!u.ativo, criadoEm: u.criado_em, ia: iaAtiva() && u.perfil !== 'admin' });
+const IA_LIMITE_DIA = Number(process.env.IA_LIMITE_DIA || 150);
 
 const sigOk = (b, t) => t === 'image/jpeg' ? b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff
   : t === 'image/png' ? b.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47]))
@@ -197,6 +199,22 @@ async function handleApi(req, res, url) {
     if (isEstoma) return send(res, 200, { total: Number((await db.get("SELECT COUNT(*) n FROM registros WHERE status = 'enviado'")).n), tipo: 'casos' });
     if (isExam) return send(res, 200, { total: Number((await db.get("SELECT COUNT(*) n FROM registros WHERE status = 'avaliado' AND avaliacao_visto = 0 AND criado_por = ?", user.id)).n), tipo: 'devolutivas' });
     return send(res, 200, { total: 0, tipo: '' });
+  }
+
+  // ----- IA: organiza relato falado em campos do formulário -----
+  if (method === 'POST' && pathname === '/api/ia/estruturar') {
+    if (deny('Sem acesso', clinico)) return;
+    if (!iaAtiva()) return fail(res, 503, 'O preenchimento por IA não está configurado');
+    const b = await readJson(req);
+    const texto = str(b.texto, MAX_TEXTO);
+    if (!contextoValido(b.contexto)) return fail(res, 400, 'Contexto inválido');
+    if ((b.contexto === 'registro' && !isExam) || (b.contexto === 'avaliacao' && !isEstoma)) return fail(res, 403, 'Este recurso não é do seu perfil');
+    if (texto.length < 5) return fail(res, 400, 'Fale ou escreva o relato antes de usar a IA');
+    const desde = new Date(Date.now() - 86400000).toISOString();
+    const usos = Number((await db.get("SELECT COUNT(*) n FROM auditoria WHERE user_id = ? AND acao = 'ia_estruturar' AND em > ?", user.id, desde)).n);
+    if (usos >= IA_LIMITE_DIA) return fail(res, 429, 'Limite diário de uso da IA atingido');
+    await audit(user, 'ia_estruturar', b.contexto); // registra o uso, nunca o conteúdo
+    return send(res, 200, { campos: await estruturar(b.contexto, texto) });
   }
 
   // ----- Administração -----

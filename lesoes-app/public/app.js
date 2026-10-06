@@ -78,6 +78,23 @@ function habilitarVoz() {
   });
 }
 
+// Preenchimento por IA: relato livre -> campos do formulário (só aparece se o servidor tiver a IA configurada)
+const blocoIA = () => (user.ia ? `<div class="ia"><label>✨ Relato livre: fale ou escreva e a IA preenche os campos</label>
+  <textarea id="ia-texto" data-voz placeholder="Ex.: lesão na região sacral, uns 3 centímetros, leito rosado com pouca secreção, pele ao redor íntegra..."></textarea>
+  <button type="button" class="small primary" id="ia-btn">✨ Preencher campos com IA</button>
+  <div class="muted">Revise tudo antes de salvar. O texto é enviado à Anthropic (Claude) apenas para organizar os campos. <b>Não cite o nome do paciente.</b></div>
+  <div class="err" id="ia-e"></div></div>` : '');
+function ligarIA(contexto, preencher) {
+  const btn = $('#ia-btn'); if (!btn) return;
+  btn.onclick = async () => {
+    const rotulo = btn.textContent; $('#ia-e').textContent = ''; btn.disabled = true; btn.textContent = 'Organizando…';
+    try {
+      const { campos } = await api('/ia/estruturar', { method: 'POST', body: { contexto, texto: $('#ia-texto').value } });
+      preencher(campos); $('#ia-e').innerHTML = '<span class="okmsg">Campos preenchidos. Revise antes de salvar.</span>';
+    } catch (e) { $('#ia-e').textContent = e.message; } finally { btn.disabled = false; btn.textContent = rotulo; }
+  };
+}
+
 // ---------- Avisos ----------
 async function checarAvisos() {
   if (!token || !user || user.perfil === 'admin') return;
@@ -280,10 +297,12 @@ async function renderPaciente() {
 // ---------- Registro ----------
 function renderNovoRegistro() {
   $('#app').innerHTML = shell(`<form class="card" id="f"><h2>Nova lesão</h2>
+    ${blocoIA()}
     <label>Localização anatômica</label><input name="local" data-voz placeholder="Ex.: região sacral, calcâneo direito">
     <label>Observações (tamanho, secreção, dor, curativo atual...)</label><textarea name="observacoes" data-voz></textarea>
     <div class="err" id="e"></div><div class="row nofill"><button type="button" id="cancel">Cancelar</button><button class="primary">Continuar e anexar foto</button></div></form>`);
   bindShell(); habilitarVoz(); $('#cancel').onclick = () => go('paciente', { id: state.pacienteId });
+  ligarIA('registro', (c) => { const f = $('#f'); if (c.local) f.local.value = c.local; if (c.observacoes) f.observacoes.value = c.observacoes; });
   $('#f').onsubmit = async (ev) => {
     ev.preventDefault();
     try { const r = await api('/registros', { method: 'POST', body: { pacienteId: state.pacienteId, ...Object.fromEntries(new FormData(ev.target)) } }); go('registro', { id: r.id }); }
@@ -311,6 +330,7 @@ async function renderRegistro() {
      <button class="primary" id="pdf">📄 Baixar relatório (PDF)</button></div>`
    : r.status === 'enviado' && isEx ? '<div class="card muted">Aguardando avaliação da estomaterapeuta.</div>' : ''}
   ${!isEx && r.status === 'enviado' ? `<form class="card" id="av"><h2>Sua avaliação</h2>
+    ${blocoIA()}
     <label>Classificação da lesão</label><select name="estagio"><option value="">—</option>${Object.entries(ESTAGIO).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
     <label>Tratamento indicado *</label><textarea name="tratamento" required data-voz placeholder="Limpeza, cobertura, frequência de troca..."></textarea>
     <label>Orientações *</label><textarea name="orientacoes" required data-voz placeholder="Reposicionamento, superfície de suporte, nutrição, sinais de alerta..."></textarea>
@@ -334,6 +354,7 @@ async function renderRegistro() {
     if (!confirm('Excluir este rascunho e a foto?')) return;
     try { await api('/registros/' + r.id, { method: 'DELETE' }); go('paciente', { id: r.pacienteId }); } catch (e) { $('#e').textContent = e.message; }
   };
+  if ($('#av')) ligarIA('avaliacao', (c) => { const f = $('#av'); if (c.estagio) f.estagio.value = c.estagio; if (c.tratamento) f.tratamento.value = c.tratamento; if (c.orientacoes) f.orientacoes.value = c.orientacoes; if (c.retornoDias) f.retornoDias.value = c.retornoDias; });
   if ($('#pdf')) $('#pdf').onclick = async () => { try { await baixarPdf(`/registros/${r.id}/pdf`, `relatorio-lesao-${r.paciente?.prontuario || r.id}.pdf`); } catch (e) { $('#e').textContent = e.message; } };
   if ($('#av')) $('#av').onsubmit = async (ev) => {
     ev.preventDefault();

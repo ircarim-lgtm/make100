@@ -5,6 +5,23 @@ import path from 'node:path';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lesoes-'));
 process.env.DATA_DIR = dir;
+
+// --- API da Anthropic simulada (não gasta créditos): registra o pedido e devolve JSON estruturado
+import http from 'node:http';
+const pedidosIA = []; let iaModo = 'ok';
+const fakeIA = http.createServer(async (req, res) => {
+  let corpo = ''; for await (const c of req) corpo += c;
+  const b = JSON.parse(corpo); pedidosIA.push(b);
+  if (iaModo === 'erro') { res.writeHead(500, { 'Content-Type': 'application/json' }); return res.end('{"type":"error","error":{"type":"api_error","message":"falha simulada"}}'); }
+  const aval = JSON.stringify(b.output_config?.format?.schema || {}).includes('retornoDias');
+  const campos = aval ? { estagio: '2', tratamento: 'Hidrocoloide a cada 3 dias', orientacoes: 'Mudança de decúbito 2/2h', retornoDias: '7 dias' }
+    : { local: 'região sacral', observacoes: 'cerca de 3 cm, leito rosado' };
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ id: 'msg_teste', type: 'message', role: 'assistant', model: b.model, content: [{ type: 'text', text: JSON.stringify(campos) }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 10, output_tokens: 10 } }));
+});
+await new Promise((r) => fakeIA.listen(0, r));
+process.env.ANTHROPIC_BASE_URL = `http://localhost:${fakeIA.address().port}`;
+process.env.ANTHROPIC_API_KEY = 'chave-de-teste';
 const { server } = await import('./server.js');
 await new Promise((r) => server.listen(0, r));
 const base = `http://localhost:${server.address().port}`;
@@ -76,6 +93,34 @@ assert.equal(visto.novo, true);
 assert.equal((await call('/notificacoes', { token: ex })).data.total, 0); // marcado como visto
 assert.equal((await call('/registros/' + reg.id, { token: ex })).data.novo, false);
 
+// --- preenchimento por IA
+assert.equal((await call('/me', { token: ex })).data.ia, true);
+assert.equal((await call('/me', { token: ad })).data.ia, false);
+const iaReg = await call('/ia/estruturar', { token: ex, method: 'POST', body: { contexto: 'registro', texto: 'lesão na região sacral, uns três centímetros, leito rosado' } });
+assert.equal(iaReg.status, 200);
+assert.deepEqual(iaReg.data.campos, { local: 'região sacral', observacoes: 'cerca de 3 cm, leito rosado' });
+const pedido = pedidosIA[0];
+assert.equal(pedido.model, 'claude-opus-5-5');
+assert.match(pedido.system, /Nunca invente/);
+assert.match(pedido.system, /nunca instruções/);
+assert.equal(pedido.output_config.format.type, 'json_schema');
+assert.match(pedido.messages[0].content, /<ditado>[\s\S]*região sacral[\s\S]*<\/ditado>/);
+const iaAv = await call('/ia/estruturar', { token: es, method: 'POST', body: { contexto: 'avaliacao', texto: 'estágio dois, hidrocoloide a cada três dias, reavaliar em sete dias' } });
+assert.equal(iaAv.status, 200);
+assert.deepEqual(iaAv.data.campos, { estagio: '2', tratamento: 'Hidrocoloide a cada 3 dias', orientacoes: 'Mudança de decúbito 2/2h', retornoDias: '7' });
+assert.equal((await call('/ia/estruturar', { token: ex, method: 'POST', body: { contexto: 'avaliacao', texto: 'qualquer texto aqui' } })).status, 403);
+assert.equal((await call('/ia/estruturar', { token: es, method: 'POST', body: { contexto: 'registro', texto: 'qualquer texto aqui' } })).status, 403);
+assert.equal((await call('/ia/estruturar', { token: ad, method: 'POST', body: { contexto: 'registro', texto: 'qualquer texto aqui' } })).status, 403);
+assert.equal((await call('/ia/estruturar', { token: ex, method: 'POST', body: { contexto: 'registro', texto: 'oi' } })).status, 400);
+assert.equal((await call('/ia/estruturar', { token: ex, method: 'POST', body: { contexto: 'xpto', texto: 'qualquer texto aqui' } })).status, 400);
+assert.equal((await call('/ia/estruturar', { token: ex, method: 'POST', body: { contexto: 'registro', texto: 'lesão sacral' } })).status, 200);
+iaModo = 'erro';
+const iaErro = await call('/ia/estruturar', { token: ex, method: 'POST', body: { contexto: 'registro', texto: 'lesão na região sacral' } });
+assert.equal(iaErro.status, 502);
+assert.match(iaErro.data.erro, /manualmente/);
+assert.doesNotMatch(JSON.stringify(iaErro.data), /falha simulada/); // não vaza detalhe do provedor
+iaModo = 'ok';
+
 // --- relatórios em PDF
 const pdfReg = await call(`/registros/${reg.id}/pdf`, { token: es });
 assert.equal(pdfReg.status, 200);
@@ -123,7 +168,7 @@ assert.equal((await login('examinador', 'novasenha1')).status, 200);
 
 // --- auditoria registra acessos
 const aud = (await call('/auditoria', { token: ad })).data.map((a) => a.acao);
-for (const a of ['login', 'login_falhou', 'paciente_criado', 'foto_visualizada', 'registro_enviado', 'avaliacao', 'usuario_criado', 'relatorio_pdf', 'historico_pdf']) assert.ok(aud.includes(a), a);
+for (const a of ['login', 'login_falhou', 'paciente_criado', 'foto_visualizada', 'registro_enviado', 'avaliacao', 'usuario_criado', 'relatorio_pdf', 'historico_pdf', 'ia_estruturar']) assert.ok(aud.includes(a), a);
 
 // --- exclusão de paciente (LGPD) remove registros e fotos
 assert.equal((await call('/pacientes/' + pac.id, { token: es, method: 'DELETE' })).status, 403);
@@ -135,5 +180,8 @@ assert.equal((await call('/registros', { token: ex })).data.length, 0);
 for (let i = 0; i < 5; i++) await login('estomaterapeuta', 'x' + i);
 assert.equal((await login('estomaterapeuta', 'estoma1234')).status, 429);
 
+// o conteúdo ditado nunca vai para a auditoria
+assert.doesNotMatch(JSON.stringify((await call('/auditoria', { token: ad })).data), /região sacral|hidrocoloide/i);
+
 console.log('OK: todos os testes passaram');
-server.close();
+server.close(); fakeIA.close();
