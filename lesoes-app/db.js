@@ -25,6 +25,13 @@ CREATE TABLE IF NOT EXISTS registros (
 );
 CREATE INDEX IF NOT EXISTS idx_reg_pac ON registros(paciente_id);
 CREATE INDEX IF NOT EXISTS idx_reg_status ON registros(status);
+CREATE TABLE IF NOT EXISTS config (chave TEXT PRIMARY KEY, valor TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS ia_sugestoes (
+  id TEXT PRIMARY KEY, registro_id TEXT NOT NULL REFERENCES registros(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL, criado_em TEXT NOT NULL, modelo TEXT NOT NULL, n_exemplos INTEGER NOT NULL,
+  sugestao TEXT NOT NULL, final TEXT, estagio_igual INTEGER, tratamento_alterado INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_ia_reg ON ia_sugestoes(registro_id);
 CREATE TABLE IF NOT EXISTS auditoria (
   id ${auto}, em TEXT NOT NULL, user_id TEXT, user_nome TEXT, acao TEXT NOT NULL, alvo TEXT
 );
@@ -40,6 +47,8 @@ async function openPg(url) {
     await c.query('BEGIN');
     await c.query('SELECT pg_advisory_xact_lock(7424)');
     await c.query(TABLES('SERIAL PRIMARY KEY'));
+    await c.query('ALTER TABLE pacientes ADD COLUMN IF NOT EXISTS consentimento_ia INTEGER NOT NULL DEFAULT 0');
+    await c.query('ALTER TABLE pacientes ADD COLUMN IF NOT EXISTS consentimento_ia_por TEXT');
     await c.query('COMMIT');
   } catch (e) { await c.query('ROLLBACK').catch(() => {}); throw e; } finally { c.release(); }
   return {
@@ -54,6 +63,9 @@ async function openSqlite(file) {
   const db = new DatabaseSync(file);
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
   db.exec(TABLES('INTEGER PRIMARY KEY AUTOINCREMENT'));
+  const cols = db.prepare('PRAGMA table_info(pacientes)').all().map((c) => c.name);
+  if (!cols.includes('consentimento_ia')) db.exec('ALTER TABLE pacientes ADD COLUMN consentimento_ia INTEGER NOT NULL DEFAULT 0');
+  if (!cols.includes('consentimento_ia_por')) db.exec('ALTER TABLE pacientes ADD COLUMN consentimento_ia_por TEXT');
   return {
     all: async (sql, ...p) => db.prepare(sql).all(...p),
     get: async (sql, ...p) => db.prepare(sql).get(...p),

@@ -95,6 +95,30 @@ function ligarIA(contexto, preencher) {
   };
 }
 
+// Sugestão de avaliação pela IA (só estomaterapeuta, só se o administrador ativou)
+const CONF = { baixa: 'baixa', media: 'média', alta: 'alta' };
+const blocoSugestao = () => (user.iaSugestao ? `<div class="ia" id="sug"><b>🤖 Sugestão da IA (rascunho)</b>
+  <p class="muted">A IA analisa a foto e as observações e compara com as suas avaliações anteriores. É só um ponto de partida: <b>a decisão é sua</b> e nada é enviado sem a sua revisão.</p>
+  <button type="button" class="small primary" id="sug-btn">Analisar este caso com IA</button><div class="err" id="sug-e"></div><div id="sug-res"></div></div>` : '');
+function ligarSugestao(regId, preencher) {
+  const btn = $('#sug-btn'); if (!btn) return;
+  btn.onclick = async () => {
+    const rot = btn.textContent; btn.disabled = true; btn.textContent = 'Analisando… (pode levar até 1 minuto)'; $('#sug-e').textContent = '';
+    try {
+      const { sugestao: g, nExemplos } = await api(`/registros/${regId}/sugestao-ia`, { method: 'POST' });
+      $('#sug-res').innerHTML = `<div class="devolutiva" style="white-space:normal">
+        <b>Classificação sugerida:</b> ${g.estagio ? ESTAGIO[g.estagio] : 'não foi possível classificar'} · <b>confiança:</b> ${CONF[g.confianca]}
+        ${g.alertas ? `<p class="err">⚠️ <b>Atenção:</b> ${esc(g.alertas)}</p>` : ''}
+        <p>${esc(g.justificativa)}</p>
+        <p><b>Tratamento:</b> ${esc(g.tratamento) || '—'}</p><p><b>Orientações:</b> ${esc(g.orientacoes) || '—'}</p>
+        ${g.retornoDias ? `<p><b>Reavaliar em:</b> ${esc(g.retornoDias)} dia(s)</p>` : ''}
+        <p class="muted">Baseada em ${nExemplos} avaliação(ões) anterior(es) validada(s) por você. ${nExemplos === 0 ? 'Sem exemplos ainda: a sugestão tende a ser menos confiável.' : ''}</p>
+        <button type="button" class="small" id="sug-usar">Usar como ponto de partida</button></div>`;
+      $('#sug-usar').onclick = () => { preencher(g); $('#sug-e').innerHTML = '<span class="okmsg">Campos preenchidos. Revise e corrija antes de enviar.</span>'; };
+    } catch (e) { $('#sug-e').textContent = e.message; } finally { btn.disabled = false; btn.textContent = rot; }
+  };
+}
+
 // ---------- Avisos ----------
 async function checarAvisos() {
   if (!token || !user || user.perfil === 'admin') return;
@@ -172,7 +196,7 @@ async function homeExam() {
 // ---------- Administrador ----------
 async function homeAdmin() {
   const tab = state.tab || 'usuarios';
-  const tabs = `<div class="tabs">${[['usuarios', 'Usuários'], ['pacientes', 'Pacientes (LGPD)'], ['auditoria', 'Auditoria']]
+  const tabs = `<div class="tabs">${[['usuarios', 'Usuários'], ['pacientes', 'Pacientes (LGPD)'], ['ia', 'IA'], ['auditoria', 'Auditoria']]
     .map(([k, v]) => `<button data-t="${k}" class="${tab === k ? 'on' : ''}">${v}</button>`).join('')}</div>`;
   let body = '';
   if (tab === 'usuarios') {
@@ -191,6 +215,18 @@ async function homeAdmin() {
     body = `<input id="q" placeholder="Buscar paciente" value="${esc(state.q || '')}"><div class="spacer"></div>
       <p class="muted">Excluir remove o paciente, os registros e as fotos de forma definitiva (direito de eliminação).</p>
       ${ps.map((p) => `<div class="card top"><div><b>${esc(p.nome)}</b><div class="muted">Atend. ${esc(p.prontuario)}</div></div><button class="small danger" data-del="${p.id}" data-nome="${esc(p.nome)}">Excluir</button></div>`).join('') || '<p class="muted">Nenhum paciente.</p>'}`;
+  } else if (tab === 'ia') {
+    const [cfg, m] = await Promise.all([api('/ia/config'), api('/ia/metricas')]);
+    const pc = (v) => (v === null || v === undefined ? '—' : v + '%');
+    body = `<div class="card"><h3 style="margin-top:0">Sugestão de avaliação por IA</h3>
+      <p class="muted">A IA sugere classificação e conduta à estomaterapeuta, com base nas avaliações anteriores dela. É apoio: a decisão é sempre da profissional. Só funciona para pacientes que autorizaram o uso de IA.</p>
+      <p>Chave da API: <b>${cfg.iaConfigurada ? 'configurada' : 'NÃO configurada (defina ANTHROPIC_API_KEY na Vercel)'}</b></p>
+      <label class="check"><input type="checkbox" id="ia-liga" ${cfg.sugestaoAtiva ? 'checked' : ''} ${cfg.iaConfigurada ? '' : 'disabled'}><span>Ativar sugestão por IA para a estomaterapeuta</span></label><div class="err" id="e"></div></div>
+      <div class="card"><h3 style="margin-top:0">Qualidade da IA (comparada com a decisão da estomaterapeuta)</h3>
+      <p>Sugestões geradas: <b>${m.sugestoes}</b> · com avaliação final: <b>${m.comDesfecho}</b></p>
+      <p>Concordância na classificação: <b>${pc(m.concordanciaClassificacao)}</b> · Tratamento editado pela estomaterapeuta: <b>${pc(m.tratamentoEditado)}</b></p>
+      <table><tr><th>Confiança da IA</th><th>Casos</th><th>Concordância</th></tr>${['baixa', 'media', 'alta'].map((k) => `<tr><td>${CONF[k]}</td><td>${m.porConfianca[k].casos}</td><td>${pc(m.porConfianca[k].concordancia)}</td></tr>`).join('')}</table>
+      <p class="muted">Use estes números para decidir se a IA é confiável. Com poucos casos avaliados, não tire conclusões.</p></div>`;
   } else {
     const log = await api('/auditoria');
     body = `<div class="card"><table><tr><th>Quando</th><th>Quem</th><th>Ação</th><th>Alvo</th></tr>${log.map((l) =>
@@ -199,6 +235,7 @@ async function homeAdmin() {
   $('#app').innerHTML = shell(`<h2>Administração</h2>${tabs}${body}`);
   bindShell();
   $$('[data-t]').forEach((b) => (b.onclick = () => go('home', { tab: b.dataset.t, q: '' })));
+  if ($('#ia-liga')) $('#ia-liga').onchange = async (e) => { try { await api('/ia/config', { method: 'PUT', body: { sugestaoAtiva: e.target.checked } }); } catch (x) { $('#e').textContent = x.message; e.target.checked = !e.target.checked; } };
   const nu = $('#nu');
   if (nu) nu.onsubmit = async (ev) => {
     ev.preventDefault();
@@ -246,12 +283,13 @@ function renderNovoPaciente() {
     <label>Comorbidades / observações clínicas</label><textarea name="comorbidades" data-voz></textarea>
     <h3>Consentimento (LGPD)</h3>
     <label class="check"><input type="checkbox" name="consentimento" required><span>O paciente ou responsável legal autorizou o registro fotográfico da lesão e o tratamento dos dados para acompanhamento clínico.</span></label>
+    <label class="check"><input type="checkbox" name="consentimentoIA"><span><b>Opcional:</b> autoriza que a foto da lesão seja analisada por inteligência artificial (serviço externo, Anthropic) como apoio à estomaterapeuta, e usada como exemplo para casos futuros. A decisão clínica continua sendo da profissional.</span></label>
     <label>Quem consentiu (nome e vínculo) *</label><input name="consentimentoPor" required placeholder="Ex.: a própria paciente / Maria (filha)">
     <div class="err" id="e"></div><div class="row nofill"><button type="button" id="cancel">Cancelar</button><button class="primary">Salvar paciente</button></div></form>`);
   bindShell(); habilitarVoz(); $('#cancel').onclick = () => go('home');
   $('#f').onsubmit = async (ev) => {
     ev.preventDefault();
-    const body = Object.fromEntries(new FormData(ev.target)); body.consentimento = ev.target.consentimento.checked;
+    const body = Object.fromEntries(new FormData(ev.target)); body.consentimento = ev.target.consentimento.checked; body.consentimentoIA = ev.target.consentimentoIA.checked;
     try { const p = await api('/pacientes', { method: 'POST', body }); go('paciente', { id: p.id }); } catch (e) { $('#e').textContent = e.message; }
   };
 }
@@ -282,6 +320,7 @@ async function renderPaciente() {
   $('#app').innerHTML = shell(`<div class="card"><h2>${esc(p.nome)}</h2>
     <div class="muted">Atend. ${esc(p.prontuario)} · ${esc(p.leito) || 'sem leito'} ${idade ? '· ' + idade : ''} ${p.sexo ? '· ' + esc(p.sexo) : ''} ${p.braden ? '· Braden ' + esc(p.braden) : ''}</div>
     <div class="muted">Consentimento: ${esc(p.consentimentoPor)} em ${fmt(p.consentimentoEm)}</div>
+    <div class="muted">Análise por IA: ${p.consentimentoIa ? '<b>autorizada</b>' : 'não autorizada'} ${user.perfil === 'examinador' && !p.consentimentoIa ? '<button class="link" id="cons-ia">registrar autorização</button>' : ''}</div>
     ${p.comorbidades ? `<p>${esc(p.comorbidades)}</p>` : ''}
     ${user.perfil === 'examinador' ? '<button class="primary" id="nova">+ Nova lesão / foto</button>' : ''}
     ${p.registros.some((r) => r.status !== 'rascunho') ? '<button id="pdfhist">📄 Baixar histórico completo (PDF)</button>' : ''}<div class="err" id="e"></div></div>
@@ -290,6 +329,10 @@ async function renderPaciente() {
     <button id="back">← Voltar</button>`);
   bindShell(); bindRegs(); bindComparar(p.registros);
   $('#back').onclick = () => go('home');
+  if ($('#cons-ia')) $('#cons-ia').onclick = async () => {
+    const por = prompt('Quem autorizou o uso de IA na análise das fotos? (nome e vínculo: paciente ou responsável legal)'); if (!por) return;
+    try { await api(`/pacientes/${p.id}/consentimento-ia`, { method: 'POST', body: { por } }); render(); } catch (e) { $('#e').textContent = e.message; }
+  };
   if ($('#pdfhist')) $('#pdfhist').onclick = async () => { try { await baixarPdf(`/pacientes/${p.id}/pdf`, `historico-lesoes-${p.prontuario}.pdf`); } catch (e) { $('#e').textContent = e.message; } };
   if ($('#nova')) $('#nova').onclick = () => go('novoRegistro', { pacienteId: p.id });
 }
@@ -330,6 +373,7 @@ async function renderRegistro() {
      <button class="primary" id="pdf">📄 Baixar relatório (PDF)</button></div>`
    : r.status === 'enviado' && isEx ? '<div class="card muted">Aguardando avaliação da estomaterapeuta.</div>' : ''}
   ${!isEx && r.status === 'enviado' ? `<form class="card" id="av"><h2>Sua avaliação</h2>
+    ${blocoSugestao()}
     ${blocoIA()}
     <label>Classificação da lesão</label><select name="estagio"><option value="">—</option>${Object.entries(ESTAGIO).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
     <label>Tratamento indicado *</label><textarea name="tratamento" required data-voz placeholder="Limpeza, cobertura, frequência de troca..."></textarea>
@@ -354,6 +398,7 @@ async function renderRegistro() {
     if (!confirm('Excluir este rascunho e a foto?')) return;
     try { await api('/registros/' + r.id, { method: 'DELETE' }); go('paciente', { id: r.pacienteId }); } catch (e) { $('#e').textContent = e.message; }
   };
+  if ($('#av')) ligarSugestao(r.id, (g) => { const f = $('#av'); if (g.estagio) f.estagio.value = g.estagio; f.tratamento.value = g.tratamento; f.orientacoes.value = g.orientacoes; if (g.retornoDias) f.retornoDias.value = g.retornoDias; });
   if ($('#av')) ligarIA('avaliacao', (c) => { const f = $('#av'); if (c.estagio) f.estagio.value = c.estagio; if (c.tratamento) f.tratamento.value = c.tratamento; if (c.orientacoes) f.orientacoes.value = c.orientacoes; if (c.retornoDias) f.retornoDias.value = c.retornoDias; });
   if ($('#pdf')) $('#pdf').onclick = async () => { try { await baixarPdf(`/registros/${r.id}/pdf`, `relatorio-lesao-${r.paciente?.prontuario || r.id}.pdf`); } catch (e) { $('#e').textContent = e.message; } };
   if ($('#av')) $('#av').onsubmit = async (ev) => {

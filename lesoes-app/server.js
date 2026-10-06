@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
 import { openStorage } from './storage.js';
 import { relatorioRegistro, relatorioHistorico } from './pdf.js';
-import { iaAtiva, estruturar, contextoValido, MAX_TEXTO } from './ia.js';
+import { iaAtiva, estruturar, contextoValido, sugerirAvaliacao, MAX_TEXTO } from './ia.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
@@ -119,7 +119,7 @@ const MAX_TENT = 5, BLOQUEIO_MS = 15 * 60 * 1000;
 const pacOut = (p) => ({
   id: p.id, nome: p.nome, prontuario: p.prontuario, dataNascimento: p.data_nascimento, sexo: p.sexo, leito: p.leito,
   comorbidades: p.comorbidades, braden: p.braden, consentimentoPor: p.consentimento_por, consentimentoEm: p.consentimento_em,
-  criadoEm: p.criado_em, totalRegistros: p.total,
+  consentimentoIa: !!p.consentimento_ia, criadoEm: p.criado_em, totalRegistros: p.total,
 });
 const REG_SQL = 'SELECT r.*, p.nome p_nome, p.prontuario p_pront, p.leito p_leito FROM registros r JOIN pacientes p ON p.id = r.paciente_id';
 const regOut = (r, user) => ({
@@ -132,6 +132,10 @@ const regOut = (r, user) => ({
 });
 const userOut = (u) => ({ id: u.id, nome: u.nome, login: u.login, perfil: u.perfil, ativo: !!u.ativo, criadoEm: u.criado_em, ia: iaAtiva() && u.perfil !== 'admin' });
 const IA_LIMITE_DIA = Number(process.env.IA_LIMITE_DIA || 150);
+const N_EXEMPLOS = 4;
+const iaSugestaoLigada = async () => (await db.get("SELECT valor FROM config WHERE chave = 'ia_sugestao'"))?.valor === '1';
+const meOut = async (u) => ({ ...userOut(u), iaSugestao: iaAtiva() && u.perfil === 'estomaterapeuta' && (await iaSugestaoLigada()) });
+const norm = (t) => String(t || '').toLowerCase().replace(/\s+/g, ' ').trim();
 
 const sigOk = (b, t) => t === 'image/jpeg' ? b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff
   : t === 'image/png' ? b.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47]))
@@ -168,7 +172,7 @@ async function handleApi(req, res, url) {
     }
     await db.run('DELETE FROM tentativas WHERE chave = ?', key);
     await audit(u, 'login');
-    return send(res, 200, { token: await startSession(u.id), usuario: userOut(u) });
+    return send(res, 200, { token: await startSession(u.id), usuario: await meOut(u) });
   }
 
   const user = await authUser(req);
@@ -178,7 +182,7 @@ async function handleApi(req, res, url) {
   const clinico = isExam || isEstoma;
   const deny = (msg, ok) => (ok ? false : (fail(res, 403, msg), true));
 
-  if (method === 'GET' && pathname === '/api/me') return send(res, 200, userOut(user));
+  if (method === 'GET' && pathname === '/api/me') return send(res, 200, await meOut(user));
   if (method === 'POST' && pathname === '/api/logout') {
     await db.run('DELETE FROM sessions WHERE token_hash = ?', sha((req.headers.authorization || '').replace(/^Bearer /, '')));
     return send(res, 200, { ok: true });
@@ -199,6 +203,34 @@ async function handleApi(req, res, url) {
     if (isEstoma) return send(res, 200, { total: Number((await db.get("SELECT COUNT(*) n FROM registros WHERE status = 'enviado'")).n), tipo: 'casos' });
     if (isExam) return send(res, 200, { total: Number((await db.get("SELECT COUNT(*) n FROM registros WHERE status = 'avaliado' AND avaliacao_visto = 0 AND criado_por = ?", user.id)).n), tipo: 'devolutivas' });
     return send(res, 200, { total: 0, tipo: '' });
+  }
+
+  // ----- IA: configuração e qualidade (administrador) -----
+  if (pathname === '/api/ia/config' || pathname === '/api/ia/metricas') {
+    if (deny('Apenas o administrador', isAdmin)) return;
+    if (pathname === '/api/ia/config' && method === 'GET') return send(res, 200, { iaConfigurada: iaAtiva(), sugestaoAtiva: await iaSugestaoLigada() });
+    if (pathname === '/api/ia/config' && method === 'PUT') {
+      const b = await readJson(req);
+      await db.run("INSERT INTO config (chave, valor) VALUES ('ia_sugestao', ?) ON CONFLICT (chave) DO UPDATE SET valor = excluded.valor", b.sugestaoAtiva === true ? '1' : '0');
+      await audit(user, b.sugestaoAtiva === true ? 'ia_sugestao_ativada' : 'ia_sugestao_desativada');
+      return send(res, 200, { iaConfigurada: iaAtiva(), sugestaoAtiva: b.sugestaoAtiva === true });
+    }
+    if (pathname === '/api/ia/metricas' && method === 'GET') {
+      const total = Number((await db.get('SELECT COUNT(*) n FROM ia_sugestoes')).n);
+      const rows = await db.all('SELECT sugestao, estagio_igual, tratamento_alterado FROM ia_sugestoes WHERE final IS NOT NULL');
+      const por = { baixa: [0, 0], media: [0, 0], alta: [0, 0] };
+      let iguais = 0, alterados = 0;
+      for (const r of rows) {
+        const c = JSON.parse(r.sugestao).confianca; const ok = Number(r.estagio_igual) === 1;
+        if (ok) iguais++; if (Number(r.tratamento_alterado) === 1) alterados++;
+        if (por[c]) { por[c][0]++; if (ok) por[c][1]++; }
+      }
+      const pct = (a, b) => (b ? Math.round((a / b) * 100) : null);
+      return send(res, 200, {
+        sugestoes: total, comDesfecho: rows.length, concordanciaClassificacao: pct(iguais, rows.length), tratamentoEditado: pct(alterados, rows.length),
+        porConfianca: Object.fromEntries(Object.entries(por).map(([k, [n, ok]]) => [k, { casos: n, concordancia: pct(ok, n) }])),
+      });
+    }
   }
 
   // ----- IA: organiza relato falado em campos do formulário -----
@@ -270,8 +302,9 @@ async function handleApi(req, res, url) {
     const nasc = str(b.dataNascimento, 10);
     if (nasc && !/^\d{4}-\d{2}-\d{2}$/.test(nasc)) return fail(res, 400, 'Data de nascimento inválida');
     const pid = id();
-    await db.run('INSERT INTO pacientes VALUES (?,?,?,?,?,?,?,?,?,?,?,?)', pid, nome, prontuario, nasc, str(b.sexo, 20), str(b.leito, 40),
-      str(b.comorbidades, 500), str(b.braden, 5), consPor, now(), user.id, now());
+    const comIa = b.consentimentoIA === true ? 1 : 0;
+    await db.run('INSERT INTO pacientes (id,nome,prontuario,data_nascimento,sexo,leito,comorbidades,braden,consentimento_por,consentimento_em,criado_por,criado_em,consentimento_ia,consentimento_ia_por) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      pid, nome, prontuario, nasc, str(b.sexo, 20), str(b.leito, 40), str(b.comorbidades, 500), str(b.braden, 5), consPor, now(), user.id, now(), comIa, comIa ? consPor : null);
     await audit(user, 'paciente_criado', prontuario);
     return send(res, 201, pacOut(await db.get('SELECT p.*, 0 total FROM pacientes p WHERE id = ?', pid)));
   }
@@ -285,6 +318,17 @@ async function handleApi(req, res, url) {
     for (const r of registros) if (r.foto_arquivo) fotos.set(r.id, await storage.get(r.foto_arquivo));
     await audit(user, 'historico_pdf', p.prontuario);
     return sendPdf(res, relatorioHistorico({ paciente: p, registros, fotos, geradoPor: user.nome }), `historico-lesoes-${p.prontuario}.pdf`);
+  }
+  if ((m = pathname.match(/^\/api\/pacientes\/(\w+)\/consentimento-ia$/)) && method === 'POST') {
+    if (deny('Apenas o examinador registra o consentimento', isExam)) return;
+    const p = await db.get('SELECT * FROM pacientes WHERE id = ?', m[1]);
+    if (!p) return fail(res, 404, 'Paciente não encontrado');
+    const b = await readJson(req);
+    const por = str(b.por, 120);
+    if (!por) return fail(res, 400, 'Informe quem autorizou (paciente ou responsável legal)');
+    await db.run('UPDATE pacientes SET consentimento_ia = 1, consentimento_ia_por = ? WHERE id = ?', por, p.id);
+    await audit(user, 'consentimento_ia', p.prontuario);
+    return send(res, 200, { ok: true });
   }
   if ((m = pathname.match(/^\/api\/pacientes\/(\w+)$/))) {
     const p = await db.get('SELECT p.*, 0 total FROM pacientes p WHERE id = ?', m[1]);
@@ -327,7 +371,7 @@ async function handleApi(req, res, url) {
       await audit(user, 'registro_criado', rid);
       return send(res, 201, regOut(await db.get(`${REG_SQL} WHERE r.id = ?`, rid), user));
     }
-    if ((m = pathname.match(/^\/api\/registros\/(\w+)(?:\/(foto|enviar|avaliacao|pdf))?$/))) {
+    if ((m = pathname.match(/^\/api\/registros\/(\w+)(?:\/(foto|enviar|avaliacao|pdf|sugestao-ia))?$/))) {
       const r = await db.get(`${REG_SQL} WHERE r.id = ?`, m[1]);
       const sub = m[2];
       if (!visivel(r)) return fail(res, 404, 'Registro não encontrado');
@@ -374,6 +418,34 @@ async function handleApi(req, res, url) {
         const dia = (r.enviado_em || r.criado_em).slice(0, 10);
         return sendPdf(res, relatorioRegistro({ paciente, registro: r, fotoBuf, geradoPor: user.nome }), `relatorio-lesao-${paciente.prontuario}-${dia}.pdf`);
       }
+      if (sub === 'sugestao-ia' && method === 'POST') {
+        if (deny('Apenas a estomaterapeuta', isEstoma)) return;
+        if (!iaAtiva()) return fail(res, 503, 'A IA não está configurada');
+        if (!(await iaSugestaoLigada())) return fail(res, 409, 'A sugestão por IA está desativada. Peça ao administrador para ativá-la.');
+        if (r.status !== 'enviado') return fail(res, 409, 'A sugestão só está disponível para casos aguardando avaliação');
+        if (!r.foto_arquivo) return fail(res, 400, 'O caso não tem foto');
+        const pac = await db.get('SELECT consentimento_ia FROM pacientes WHERE id = ?', r.paciente_id);
+        if (!pac?.consentimento_ia) return fail(res, 409, 'Este paciente não autorizou o uso de IA na análise das fotos');
+        const desde = new Date(Date.now() - 86400000).toISOString();
+        if (Number((await db.get("SELECT COUNT(*) n FROM auditoria WHERE user_id = ? AND acao = 'ia_sugestao' AND em > ?", user.id, desde)).n) >= IA_LIMITE_DIA) return fail(res, 429, 'Limite diário de uso da IA atingido');
+        // exemplos: avaliações anteriores já validadas (só de pacientes que autorizaram IA), priorizando a mesma localização
+        const modelos = await db.all(`SELECT r2.* FROM registros r2 JOIN pacientes p2 ON p2.id = r2.paciente_id
+          WHERE r2.status = 'avaliado' AND r2.avaliacao IS NOT NULL AND r2.foto_arquivo IS NOT NULL AND p2.consentimento_ia = 1 AND r2.id != ?
+          ORDER BY CASE WHEN lower(r2.local) = lower(?) THEN 0 ELSE 1 END, r2.criado_em DESC LIMIT ?`, r.id, r.local || '', N_EXEMPLOS);
+        let bytes = 0;
+        const exemplos = [];
+        for (const e of modelos) {
+          const buf = await storage.get(e.foto_arquivo);
+          if ((bytes += buf.length) > 16 * 1024 * 1024) break; // mantém o pedido abaixo do limite da API
+          exemplos.push({ local: e.local, observacoes: e.observacoes, foto: { buf, tipo: e.foto_tipo }, avaliacao: JSON.parse(e.avaliacao) });
+        }
+        const caso = { local: r.local, observacoes: r.observacoes, foto: { buf: await storage.get(r.foto_arquivo), tipo: r.foto_tipo } };
+        await audit(user, 'ia_sugestao', r.id); // registra o uso (e conta para o limite), nunca o conteúdo
+        const { modelo, sugestao } = await sugerirAvaliacao({ caso, exemplos });
+        const sid = id();
+        await db.run('INSERT INTO ia_sugestoes (id, registro_id, user_id, criado_em, modelo, n_exemplos, sugestao) VALUES (?,?,?,?,?,?,?)', sid, r.id, user.id, now(), modelo, exemplos.length, JSON.stringify(sugestao));
+        return send(res, 200, { id: sid, nExemplos: exemplos.length, sugestao });
+      }
       if (sub === 'enviar' && method === 'POST') {
         if (deny('Apenas o examinador envia para a estomaterapeuta', isExam)) return;
         if (r.status !== 'rascunho') return fail(res, 409, 'Registro já foi enviado');
@@ -394,6 +466,12 @@ async function handleApi(req, res, url) {
         if (ret !== null && (!Number.isInteger(ret) || ret < 0 || ret > 365)) return fail(res, 400, 'Prazo de reavaliação inválido');
         const av = { estagio, tratamento, orientacoes, retornoDias: ret, avaliadoPor: user.id, avaliadoPorNome: user.nome, avaliadoEm: now() };
         await db.run("UPDATE registros SET status='avaliado', avaliacao=?, avaliacao_visto=0 WHERE id=?", JSON.stringify(av), r.id);
+        const sug = await db.get('SELECT id, sugestao FROM ia_sugestoes WHERE registro_id = ? ORDER BY criado_em DESC LIMIT 1', r.id);
+        if (sug) { // mede a concordância entre a sugestão da IA e a decisão da estomaterapeuta
+          const s0 = JSON.parse(sug.sugestao);
+          await db.run('UPDATE ia_sugestoes SET final = ?, estagio_igual = ?, tratamento_alterado = ? WHERE id = ?', JSON.stringify({ estagio: av.estagio, tratamento: av.tratamento }),
+            s0.estagio !== '' && s0.estagio === av.estagio ? 1 : 0, norm(s0.tratamento) === norm(av.tratamento) ? 0 : 1, sug.id);
+        }
         await audit(user, 'avaliacao', r.id);
         await notify('Uma devolutiva da estomaterapeuta está disponível.');
         return send(res, 200, await reload());

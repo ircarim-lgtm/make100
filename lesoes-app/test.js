@@ -13,8 +13,11 @@ const fakeIA = http.createServer(async (req, res) => {
   let corpo = ''; for await (const c of req) corpo += c;
   const b = JSON.parse(corpo); pedidosIA.push(b);
   if (iaModo === 'erro') { res.writeHead(500, { 'Content-Type': 'application/json' }); return res.end('{"type":"error","error":{"type":"api_error","message":"falha simulada"}}'); }
-  const aval = JSON.stringify(b.output_config?.format?.schema || {}).includes('retornoDias');
-  const campos = aval ? { estagio: '2', tratamento: 'Hidrocoloide a cada 3 dias', orientacoes: 'Mudança de decúbito 2/2h', retornoDias: '7 dias' }
+  const esquema = JSON.stringify(b.output_config?.format?.schema || {});
+  const aval = esquema.includes('retornoDias');
+  const campos = esquema.includes('justificativa')
+    ? { estagio: '2', tratamento: 'Hidrocoloide a cada 3 dias', orientacoes: 'Mudança de decúbito 2/2h', retornoDias: '7', confianca: 'media', justificativa: 'Leito rosado, bordas regulares.', alertas: '' }
+    : aval ? { estagio: '2', tratamento: 'Hidrocoloide a cada 3 dias', orientacoes: 'Mudança de decúbito 2/2h', retornoDias: '7 dias' }
     : { local: 'região sacral', observacoes: 'cerca de 3 cm, leito rosado' };
   res.writeHead(200, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ id: 'msg_teste', type: 'message', role: 'assistant', model: b.model, content: [{ type: 'text', text: JSON.stringify(campos) }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 10, output_tokens: 10 } }));
@@ -38,7 +41,7 @@ const call = async (p, { token, method = 'GET', body, type } = {}) => {
 const login = (l, s) => call('/login', { method: 'POST', body: { login: l, senha: s } });
 const tok = async (l, s) => (await login(l, s)).data.token;
 const jpg = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
-const PAC = { nome: 'Maria Silva', prontuario: '123', leito: '12A', consentimento: true, consentimentoPor: 'a própria paciente' };
+const PAC = { nome: 'Maria Silva', prontuario: '123', leito: '12A', consentimento: true, consentimentoPor: 'a própria paciente', consentimentoIA: true };
 
 // --- login e segurança básica
 assert.equal((await login('examinador', 'errada')).status, 401);
@@ -145,6 +148,49 @@ await call(`/registros/${r2.id}/foto`, { token: ex, method: 'PUT', body: jpg, ty
 assert.equal((await call('/registros/' + r2.id, { token: ex, method: 'DELETE' })).status, 200);
 assert.equal(fs.readdirSync(path.join(dir, 'photos')).length, 1);
 
+// --- sugestão de avaliação pela IA (estomaterapeuta): exemplos validados, consentimento e métricas
+const r4 = (await call('/registros', { token: ex, method: 'POST', body: { pacienteId: pac.id, local: 'sacral', observacoes: 'ferida rosada' } })).data;
+await call(`/registros/${r4.id}/foto`, { token: ex, method: 'PUT', body: jpg, type: 'image/jpeg' });
+await call(`/registros/${r4.id}/enviar`, { token: ex, method: 'POST' });
+assert.equal((await call(`/registros/${r4.id}/sugestao-ia`, { token: es, method: 'POST' })).status, 409); // desligada por padrão
+assert.equal((await call('/me', { token: es })).data.iaSugestao, false);
+assert.equal((await call('/ia/config', { token: ex })).status, 403);
+assert.equal((await call('/ia/config', { token: es, method: 'PUT', body: { sugestaoAtiva: true } })).status, 403);
+assert.equal((await call('/ia/config', { token: ad, method: 'PUT', body: { sugestaoAtiva: true } })).data.sugestaoAtiva, true);
+assert.equal((await call('/me', { token: es })).data.iaSugestao, true);
+assert.equal((await call('/me', { token: ex })).data.iaSugestao, false); // o examinador nunca vê a IA de avaliação
+assert.equal((await call(`/registros/${r4.id}/sugestao-ia`, { token: ex, method: 'POST' })).status, 403);
+// paciente sem consentimento de IA: bloqueado e nunca usado como exemplo
+const pacSem = (await call('/pacientes', { token: ex, method: 'POST', body: { ...PAC, nome: 'Sem IA', prontuario: '555', consentimentoIA: false } })).data;
+assert.equal(pacSem.consentimentoIa, false);
+const rSem = (await call('/registros', { token: ex, method: 'POST', body: { pacienteId: pacSem.id, local: 'sacral' } })).data;
+await call(`/registros/${rSem.id}/foto`, { token: ex, method: 'PUT', body: jpg, type: 'image/jpeg' });
+await call(`/registros/${rSem.id}/enviar`, { token: ex, method: 'POST' });
+const semCons = await call(`/registros/${rSem.id}/sugestao-ia`, { token: es, method: 'POST' });
+assert.equal(semCons.status, 409); assert.match(semCons.data.erro, /não autorizou/);
+assert.equal((await call(`/pacientes/${pacSem.id}/consentimento-ia`, { token: es, method: 'POST', body: { por: 'x' } })).status, 403);
+assert.equal((await call(`/pacientes/${pacSem.id}/consentimento-ia`, { token: ex, method: 'POST', body: {} })).status, 400);
+assert.equal((await call(`/pacientes/${pacSem.id}/consentimento-ia`, { token: ex, method: 'POST', body: { por: 'o filho' } })).status, 200);
+assert.equal((await call('/pacientes/' + pacSem.id, { token: ex })).data.consentimentoIa, true);
+assert.equal((await call('/pacientes/' + pacSem.id, { token: ad, method: 'DELETE' })).status, 200);
+// sugestão do caso r4: usa 1 exemplo validado (reg) com foto
+const antes = pedidosIA.length;
+const sug = await call(`/registros/${r4.id}/sugestao-ia`, { token: es, method: 'POST' });
+assert.equal(sug.status, 200);
+assert.equal(sug.data.nExemplos, 1);
+assert.equal(sug.data.sugestao.estagio, '2'); assert.equal(sug.data.sugestao.confianca, 'media');
+const ped = pedidosIA[antes];
+assert.equal(ped.messages[0].content.filter((c) => c.type === 'image').length, 2); // 1 exemplo + o caso
+assert.match(JSON.stringify(ped.messages[0].content), /exemplo_validado[\s\S]*Hidrocoloide a cada 3 dias[\s\S]*caso_a_avaliar/);
+assert.match(ped.system, /decisão clínica é sempre dela/);
+// a estomaterapeuta decide (aqui discorda do tratamento): o app mede a concordância
+assert.equal((await call(`/registros/${r4.id}/avaliacao`, { token: es, method: 'POST', body: { estagio: '2', tratamento: 'Espuma com prata', orientacoes: 'x' } })).status, 200);
+const met = (await call('/ia/metricas', { token: ad })).data;
+assert.equal(met.sugestoes, 1); assert.equal(met.comDesfecho, 1);
+assert.equal(met.concordanciaClassificacao, 100); assert.equal(met.tratamentoEditado, 100);
+assert.equal(met.porConfianca.media.casos, 1);
+assert.equal((await call('/ia/metricas', { token: ex })).status, 403);
+
 // --- administrador: sem acesso clínico, gerencia usuários
 assert.equal((await call('/registros', { token: ad })).status, 403);
 assert.equal((await call('/pacientes/' + pac.id, { token: ad })).status, 403);
@@ -168,7 +214,7 @@ assert.equal((await login('examinador', 'novasenha1')).status, 200);
 
 // --- auditoria registra acessos
 const aud = (await call('/auditoria', { token: ad })).data.map((a) => a.acao);
-for (const a of ['login', 'login_falhou', 'paciente_criado', 'foto_visualizada', 'registro_enviado', 'avaliacao', 'usuario_criado', 'relatorio_pdf', 'historico_pdf', 'ia_estruturar']) assert.ok(aud.includes(a), a);
+for (const a of ['login', 'login_falhou', 'paciente_criado', 'foto_visualizada', 'registro_enviado', 'avaliacao', 'usuario_criado', 'relatorio_pdf', 'historico_pdf', 'ia_estruturar', 'ia_sugestao', 'consentimento_ia', 'ia_sugestao_ativada']) assert.ok(aud.includes(a), a);
 
 // --- exclusão de paciente (LGPD) remove registros e fotos
 assert.equal((await call('/pacientes/' + pac.id, { token: es, method: 'DELETE' })).status, 403);
@@ -181,7 +227,7 @@ for (let i = 0; i < 5; i++) await login('estomaterapeuta', 'x' + i);
 assert.equal((await login('estomaterapeuta', 'estoma1234')).status, 429);
 
 // o conteúdo ditado nunca vai para a auditoria
-assert.doesNotMatch(JSON.stringify((await call('/auditoria', { token: ad })).data), /região sacral|hidrocoloide/i);
+assert.doesNotMatch(JSON.stringify((await call('/auditoria', { token: ad })).data), /região sacral|hidrocoloide|espuma com prata/i);
 
 console.log('OK: todos os testes passaram');
 server.close(); fakeIA.close();
