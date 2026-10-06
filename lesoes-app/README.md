@@ -8,6 +8,8 @@ a **Estomaterapeuta** avalia (classificação, tratamento, orientações, prazo 
 - Consentimento (LGPD) obrigatório no cadastro; guarda quem consentiu e quando.
 - Avisos: contador no topo (atualiza a cada 30 s), aviso do navegador (opcional, app aberto) e webhook opcional (Slack/Teams/Discord) sem dados do paciente.
 - Comparação de fotos antes/depois por paciente.
+- **Relatórios em PDF** com foto: um por avaliação (botão na devolutiva) e o histórico completo do paciente, com todas as lesões em ordem cronológica.
+- **Ditado por voz** (🎤 Ditar) nos campos de texto do examinador e da estomaterapeuta, em português. Usa o reconhecimento de fala do navegador (Chrome/Edge/Android e Safari/iOS); o áudio é processado pelo serviço de voz do navegador (Google/Apple), não pelo app. Peça ao DPO para avaliar esse ponto.
 - Trilha de auditoria (logins, acessos a paciente e a fotos, envios, avaliações).
 - App instalável no celular (PWA); a foto é reduzida no aparelho antes do envio.
 - SQLite embutido (`node:sqlite`), sem dependências npm. Requer **Node 22.13+**.

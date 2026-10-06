@@ -76,6 +76,24 @@ assert.equal(visto.novo, true);
 assert.equal((await call('/notificacoes', { token: ex })).data.total, 0); // marcado como visto
 assert.equal((await call('/registros/' + reg.id, { token: ex })).data.novo, false);
 
+// --- relatórios em PDF
+const pdfReg = await call(`/registros/${reg.id}/pdf`, { token: es });
+assert.equal(pdfReg.status, 200);
+assert.equal(pdfReg.data.subarray(0, 5).toString(), '%PDF-');
+assert.equal((await call(`/registros/${reg.id}/pdf`, { token: ex })).status, 200);
+const pdfHist = await call(`/pacientes/${pac.id}/pdf`, { token: ex });
+assert.equal(pdfHist.status, 200);
+assert.equal(pdfHist.data.subarray(0, 5).toString(), '%PDF-');
+if (process.env.SALVAR_PDF) { fs.writeFileSync(path.join(process.env.SALVAR_PDF, 'registro.pdf'), pdfReg.data); fs.writeFileSync(path.join(process.env.SALVAR_PDF, 'historico.pdf'), pdfHist.data); }
+const rPdf = (await call('/registros', { token: ex, method: 'POST', body: { pacienteId: pac.id, local: 'rascunho-pdf' } })).data;
+assert.equal((await call(`/registros/${rPdf.id}/pdf`, { token: es })).status, 404); // estomaterapeuta não vê rascunho
+assert.equal((await call(`/registros/${rPdf.id}/pdf`, { token: ex })).status, 409); // ainda não avaliado
+await call('/registros/' + rPdf.id, { token: ex, method: 'DELETE' });
+assert.equal((await call(`/registros/${reg.id}/pdf`, { token: ad })).status, 403);
+assert.equal((await call(`/pacientes/${pac.id}/pdf`, { token: ad })).status, 403);
+const pacVazio = (await call('/pacientes', { token: ex, method: 'POST', body: { ...PAC, nome: 'Sem Registros', prontuario: '777' } })).data;
+assert.equal((await call(`/pacientes/${pacVazio.id}/pdf`, { token: ex })).status, 404);
+
 // --- rascunho pode ser excluído (e a foto some)
 const r2 = (await call('/registros', { token: ex, method: 'POST', body: { pacienteId: pac.id, local: 'calcâneo' } })).data;
 await call(`/registros/${r2.id}/foto`, { token: ex, method: 'PUT', body: jpg, type: 'image/jpeg' });
@@ -105,7 +123,7 @@ assert.equal((await login('examinador', 'novasenha1')).status, 200);
 
 // --- auditoria registra acessos
 const aud = (await call('/auditoria', { token: ad })).data.map((a) => a.acao);
-for (const a of ['login', 'login_falhou', 'paciente_criado', 'foto_visualizada', 'registro_enviado', 'avaliacao', 'usuario_criado']) assert.ok(aud.includes(a), a);
+for (const a of ['login', 'login_falhou', 'paciente_criado', 'foto_visualizada', 'registro_enviado', 'avaliacao', 'usuario_criado', 'relatorio_pdf', 'historico_pdf']) assert.ok(aud.includes(a), a);
 
 // --- exclusão de paciente (LGPD) remove registros e fotos
 assert.equal((await call('/pacientes/' + pac.id, { token: es, method: 'DELETE' })).status, 403);

@@ -44,6 +44,40 @@ async function carregarFoto(imgEl, regId) {
   try { const r = await api(`/registros/${regId}/foto`, { raw: true }); imgEl.src = URL.createObjectURL(await r.blob()); } catch { /* sem foto */ }
 }
 
+async function baixarPdf(path, nome) {
+  const r = await api(path, { raw: true });
+  const url = URL.createObjectURL(await r.blob());
+  const a = document.createElement('a'); a.href = url; a.download = nome; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+// Ditado por voz (reconhecimento de fala do navegador, pt-BR). Campos marcados com data-voz ganham um botão.
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+function habilitarVoz() {
+  if (!SR) return;
+  $$('[data-voz]').forEach((el) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'mic small'; b.textContent = '🎤 Ditar';
+    b.title = 'O áudio é processado pelo serviço de voz do navegador (Google/Apple), não pelo app.';
+    el.insertAdjacentElement('afterend', b);
+    let rec = null;
+    const parar = () => { rec = null; b.textContent = '🎤 Ditar'; b.classList.remove('rec'); };
+    b.onclick = () => {
+      if (rec) { rec.stop(); return; }
+      rec = new SR(); rec.lang = 'pt-BR'; rec.continuous = true; rec.interimResults = false;
+      rec.onresult = (ev) => {
+        for (let i = ev.resultIndex; i < ev.results.length; i++) {
+          if (!ev.results[i].isFinal) continue;
+          const t = ev.results[i][0].transcript.trim();
+          el.value = (el.value ? el.value.replace(/\s*$/, ' ') : '') + t;
+        }
+      };
+      rec.onerror = (e) => { if (e.error === 'not-allowed') alert('Permita o uso do microfone no navegador para ditar.'); else if (e.error !== 'no-speech' && e.error !== 'aborted') alert('Não foi possível usar o ditado: ' + e.error); };
+      rec.onend = parar;
+      try { rec.start(); b.textContent = '⏹ Parar'; b.classList.add('rec'); } catch { parar(); }
+    };
+  });
+}
+
 // ---------- Avisos ----------
 async function checarAvisos() {
   if (!token || !user || user.perfil === 'admin') return;
@@ -91,7 +125,7 @@ function renderLogin() {
 // ---------- Listas ----------
 function cardRegistro(r) {
   return `<div class="card click ${r.novo ? 'novo' : ''}" data-reg="${r.id}"><div class="top"><div><b>${esc(r.paciente?.nome)}</b>
-    <div class="muted">Pront. ${esc(r.paciente?.prontuario)} · ${esc(r.paciente?.leito) || 'sem leito'} · ${esc(r.local) || 'local não informado'}</div>
+    <div class="muted">Atend. ${esc(r.paciente?.prontuario)} · ${esc(r.paciente?.leito) || 'sem leito'} · ${esc(r.local) || 'local não informado'}</div>
     <div class="muted">${r.status === 'rascunho' ? 'Criado' : 'Enviado'} em ${fmt(r.enviadoEm || r.criadoEm)}</div></div>
     <div>${r.novo ? '<span class="badge b-novo">Nova devolutiva</span> ' : ''}${badge(r.status)}</div></div></div>`;
 }
@@ -109,9 +143,9 @@ async function homeExam() {
   const [pacs, regs] = await Promise.all([api('/pacientes?q=' + encodeURIComponent(q)), api('/registros')]);
   regs.sort((a, b) => Number(b.novo) - Number(a.novo));
   $('#app').innerHTML = shell(`<div class="row nofill" style="justify-content:space-between"><h2>Pacientes</h2><button class="primary" id="novo">+ Novo paciente</button></div>
-    <input id="q" placeholder="Buscar por nome ou prontuário" value="${esc(q)}"><div class="spacer"></div>
+    <input id="q" placeholder="Buscar por nome ou nº do atendimento" value="${esc(q)}"><div class="spacer"></div>
     ${pacs.map((p) => `<div class="card click" data-pac="${p.id}"><b>${esc(p.nome)}</b>
-      <div class="muted">Pront. ${esc(p.prontuario)} · ${esc(p.leito) || 'sem leito'} · ${p.totalRegistros} registro(s)</div></div>`).join('') || '<p class="muted">Nenhum paciente encontrado.</p>'}
+      <div class="muted">Atend. ${esc(p.prontuario)} · ${esc(p.leito) || 'sem leito'} · ${p.totalRegistros} registro(s)</div></div>`).join('') || '<p class="muted">Nenhum paciente encontrado.</p>'}
     <h2 style="margin-top:20px">Últimos registros</h2>${regs.slice(0, 10).map(cardRegistro).join('') || '<p class="muted">Sem registros.</p>'}`);
   bindShell(); bindRegs(); bindPacs();
   $('#novo').onclick = () => go('novoPaciente');
@@ -139,7 +173,7 @@ async function homeAdmin() {
     const ps = await api('/pacientes?q=' + encodeURIComponent(state.q || ''));
     body = `<input id="q" placeholder="Buscar paciente" value="${esc(state.q || '')}"><div class="spacer"></div>
       <p class="muted">Excluir remove o paciente, os registros e as fotos de forma definitiva (direito de eliminação).</p>
-      ${ps.map((p) => `<div class="card top"><div><b>${esc(p.nome)}</b><div class="muted">Pront. ${esc(p.prontuario)}</div></div><button class="small danger" data-del="${p.id}" data-nome="${esc(p.nome)}">Excluir</button></div>`).join('') || '<p class="muted">Nenhum paciente.</p>'}`;
+      ${ps.map((p) => `<div class="card top"><div><b>${esc(p.nome)}</b><div class="muted">Atend. ${esc(p.prontuario)}</div></div><button class="small danger" data-del="${p.id}" data-nome="${esc(p.nome)}">Excluir</button></div>`).join('') || '<p class="muted">Nenhum paciente.</p>'}`;
   } else {
     const log = await api('/auditoria');
     body = `<div class="card"><table><tr><th>Quando</th><th>Quem</th><th>Ação</th><th>Alvo</th></tr>${log.map((l) =>
@@ -188,16 +222,16 @@ function renderConta() {
 function renderNovoPaciente() {
   $('#app').innerHTML = shell(`<form class="card" id="f"><h2>Cadastrar paciente</h2>
     <label>Nome completo *</label><input name="nome" required>
-    <div class="row"><div><label>Prontuário *</label><input name="prontuario" required></div><div><label>Leito / setor</label><input name="leito"></div></div>
+    <div class="row"><div><label>Atendimento *</label><input name="prontuario" required></div><div><label>Leito / setor</label><input name="leito"></div></div>
     <div class="row"><div><label>Data de nascimento</label><input name="dataNascimento" type="date"></div>
       <div><label>Sexo</label><select name="sexo"><option value="">—</option><option>Feminino</option><option>Masculino</option><option>Outro</option></select></div>
       <div><label>Escala de Braden</label><input name="braden" type="number" min="6" max="23" placeholder="6 a 23"></div></div>
-    <label>Comorbidades / observações clínicas</label><textarea name="comorbidades"></textarea>
+    <label>Comorbidades / observações clínicas</label><textarea name="comorbidades" data-voz></textarea>
     <h3>Consentimento (LGPD)</h3>
     <label class="check"><input type="checkbox" name="consentimento" required><span>O paciente ou responsável legal autorizou o registro fotográfico da lesão e o tratamento dos dados para acompanhamento clínico.</span></label>
     <label>Quem consentiu (nome e vínculo) *</label><input name="consentimentoPor" required placeholder="Ex.: a própria paciente / Maria (filha)">
     <div class="err" id="e"></div><div class="row nofill"><button type="button" id="cancel">Cancelar</button><button class="primary">Salvar paciente</button></div></form>`);
-  bindShell(); $('#cancel').onclick = () => go('home');
+  bindShell(); habilitarVoz(); $('#cancel').onclick = () => go('home');
   $('#f').onsubmit = async (ev) => {
     ev.preventDefault();
     const body = Object.fromEntries(new FormData(ev.target)); body.consentimento = ev.target.consentimento.checked;
@@ -229,25 +263,27 @@ async function renderPaciente() {
   const p = await api('/pacientes/' + state.id);
   const idade = p.dataNascimento ? Math.floor((Date.now() - new Date(p.dataNascimento)) / 31557600000) + ' anos' : '';
   $('#app').innerHTML = shell(`<div class="card"><h2>${esc(p.nome)}</h2>
-    <div class="muted">Pront. ${esc(p.prontuario)} · ${esc(p.leito) || 'sem leito'} ${idade ? '· ' + idade : ''} ${p.sexo ? '· ' + esc(p.sexo) : ''} ${p.braden ? '· Braden ' + esc(p.braden) : ''}</div>
+    <div class="muted">Atend. ${esc(p.prontuario)} · ${esc(p.leito) || 'sem leito'} ${idade ? '· ' + idade : ''} ${p.sexo ? '· ' + esc(p.sexo) : ''} ${p.braden ? '· Braden ' + esc(p.braden) : ''}</div>
     <div class="muted">Consentimento: ${esc(p.consentimentoPor)} em ${fmt(p.consentimentoEm)}</div>
     ${p.comorbidades ? `<p>${esc(p.comorbidades)}</p>` : ''}
-    ${user.perfil === 'examinador' ? '<button class="primary" id="nova">+ Nova lesão / foto</button>' : ''}</div>
+    ${user.perfil === 'examinador' ? '<button class="primary" id="nova">+ Nova lesão / foto</button>' : ''}
+    ${p.registros.some((r) => r.status !== 'rascunho') ? '<button id="pdfhist">📄 Baixar histórico completo (PDF)</button>' : ''}<div class="err" id="e"></div></div>
     <div class="card"><h2>Evolução (comparar fotos)</h2>${comparar(p.registros)}</div>
     <h2>Histórico de lesões</h2>${p.registros.map(cardRegistro).join('') || '<p class="muted">Nenhum registro ainda.</p>'}
     <button id="back">← Voltar</button>`);
   bindShell(); bindRegs(); bindComparar(p.registros);
   $('#back').onclick = () => go('home');
+  if ($('#pdfhist')) $('#pdfhist').onclick = async () => { try { await baixarPdf(`/pacientes/${p.id}/pdf`, `historico-lesoes-${p.prontuario}.pdf`); } catch (e) { $('#e').textContent = e.message; } };
   if ($('#nova')) $('#nova').onclick = () => go('novoRegistro', { pacienteId: p.id });
 }
 
 // ---------- Registro ----------
 function renderNovoRegistro() {
   $('#app').innerHTML = shell(`<form class="card" id="f"><h2>Nova lesão</h2>
-    <label>Localização anatômica</label><input name="local" placeholder="Ex.: região sacral, calcâneo direito">
-    <label>Observações (tamanho, secreção, dor, curativo atual...)</label><textarea name="observacoes"></textarea>
+    <label>Localização anatômica</label><input name="local" data-voz placeholder="Ex.: região sacral, calcâneo direito">
+    <label>Observações (tamanho, secreção, dor, curativo atual...)</label><textarea name="observacoes" data-voz></textarea>
     <div class="err" id="e"></div><div class="row nofill"><button type="button" id="cancel">Cancelar</button><button class="primary">Continuar e anexar foto</button></div></form>`);
-  bindShell(); $('#cancel').onclick = () => go('paciente', { id: state.pacienteId });
+  bindShell(); habilitarVoz(); $('#cancel').onclick = () => go('paciente', { id: state.pacienteId });
   $('#f').onsubmit = async (ev) => {
     ev.preventDefault();
     try { const r = await api('/registros', { method: 'POST', body: { pacienteId: state.pacienteId, ...Object.fromEntries(new FormData(ev.target)) } }); go('registro', { id: r.id }); }
@@ -258,7 +294,7 @@ async function renderRegistro() {
   const r = await api('/registros/' + state.id);
   const isEx = user.perfil === 'examinador', av = r.avaliacao, rascunho = r.status === 'rascunho';
   $('#app').innerHTML = shell(`<div class="card"><div class="top"><div><h2 style="margin:0">${esc(r.paciente?.nome)}</h2>
-      <div class="muted">Pront. ${esc(r.paciente?.prontuario)} · ${esc(r.local) || 'local não informado'}</div>
+      <div class="muted">Atend. ${esc(r.paciente?.prontuario)} · ${esc(r.local) || 'local não informado'}</div>
       <div class="muted">Registrado por ${esc(r.criadoPorNome)} em ${fmt(r.criadoEm)}${r.enviadoEm ? ' · Enviado em ' + fmt(r.enviadoEm) : ''}</div></div>${badge(r.status)}</div>
     ${r.observacoes ? `<p>${esc(r.observacoes)}</p>` : ''}
     ${r.foto ? '<img class="foto" id="foto" alt="Foto da lesão">' : '<p class="muted">Nenhuma foto anexada.</p>'}
@@ -271,16 +307,17 @@ async function renderRegistro() {
      ${av.estagio ? `<h3>Classificação</h3><p>${ESTAGIO[av.estagio]}</p>` : ''}
      <h3>Tratamento indicado</h3><div class="devolutiva">${esc(av.tratamento)}</div>
      <h3>Orientações</h3><div class="devolutiva">${esc(av.orientacoes)}</div>
-     ${av.retornoDias != null ? `<p class="muted">Reavaliar em ${av.retornoDias} dia(s).</p>` : ''}</div>`
+     ${av.retornoDias != null ? `<p class="muted">Reavaliar em ${av.retornoDias} dia(s).</p>` : ''}
+     <button class="primary" id="pdf">📄 Baixar relatório (PDF)</button></div>`
    : r.status === 'enviado' && isEx ? '<div class="card muted">Aguardando avaliação da estomaterapeuta.</div>' : ''}
   ${!isEx && r.status === 'enviado' ? `<form class="card" id="av"><h2>Sua avaliação</h2>
     <label>Classificação da lesão</label><select name="estagio"><option value="">—</option>${Object.entries(ESTAGIO).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
-    <label>Tratamento indicado *</label><textarea name="tratamento" required placeholder="Limpeza, cobertura, frequência de troca..."></textarea>
-    <label>Orientações *</label><textarea name="orientacoes" required placeholder="Reposicionamento, superfície de suporte, nutrição, sinais de alerta..."></textarea>
+    <label>Tratamento indicado *</label><textarea name="tratamento" required data-voz placeholder="Limpeza, cobertura, frequência de troca..."></textarea>
+    <label>Orientações *</label><textarea name="orientacoes" required data-voz placeholder="Reposicionamento, superfície de suporte, nutrição, sinais de alerta..."></textarea>
     <label>Reavaliar em (dias)</label><input name="retornoDias" type="number" min="0" max="365">
     <div class="err" id="e2"></div><button class="primary" style="width:100%">Enviar devolutiva</button></form>` : ''}
   <div class="row nofill"><button id="back">← Voltar</button><button id="hist">Ver histórico do paciente</button></div>`);
-  bindShell();
+  bindShell(); habilitarVoz();
   $('#back').onclick = () => go('home');
   $('#hist').onclick = () => go('paciente', { id: r.pacienteId });
   if (r.foto) carregarFoto($('#foto'), r.id);
@@ -297,6 +334,7 @@ async function renderRegistro() {
     if (!confirm('Excluir este rascunho e a foto?')) return;
     try { await api('/registros/' + r.id, { method: 'DELETE' }); go('paciente', { id: r.pacienteId }); } catch (e) { $('#e').textContent = e.message; }
   };
+  if ($('#pdf')) $('#pdf').onclick = async () => { try { await baixarPdf(`/registros/${r.id}/pdf`, `relatorio-lesao-${r.paciente?.prontuario || r.id}.pdf`); } catch (e) { $('#e').textContent = e.message; } };
   if ($('#av')) $('#av').onsubmit = async (ev) => {
     ev.preventDefault();
     try { await api(`/registros/${r.id}/avaliacao`, { method: 'POST', body: Object.fromEntries(new FormData(ev.target)) }); render(); }

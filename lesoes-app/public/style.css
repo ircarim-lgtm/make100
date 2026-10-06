@@ -35,3 +35,4 @@ img.foto { width:100%; max-height:420px; object-fit:contain; background:#000; bo
 .cmp .ph { height:240px; display:flex; align-items:center; justify-content:center; background:#eceff1; border-radius:8px; color:var(--mut); }
 table { width:100%; border-collapse:collapse; font-size:13px; } td, th { text-align:left; padding:6px 4px; border-bottom:1px solid var(--bd); vertical-align:top; }
 .spacer { height:12px; }
+.mic { margin:4px 0 0; } .mic.rec { background:var(--err); border-color:var(--err); color:#fff; }

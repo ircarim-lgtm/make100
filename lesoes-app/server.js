@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
 import { openStorage } from './storage.js';
+import { relatorioRegistro, relatorioHistorico } from './pdf.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
@@ -75,6 +76,11 @@ const send = (res, status, body, headers = {}) => {
   const buf = Buffer.isBuffer(body);
   res.writeHead(status, { 'Content-Type': buf ? 'application/octet-stream' : 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...SEC, ...headers });
   res.end(buf ? body : JSON.stringify(body));
+};
+const sendPdf = (res, doc, nome) => {
+  res.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${nome.replace(/[^\w.-]/g, '_')}"`, 'Cache-Control': 'no-store', ...SEC });
+  doc.pipe(res);
+  doc.end();
 };
 const fail = (res, status, erro) => send(res, status, { erro });
 // Na Vercel o corpo pode já ter sido lido pelo runtime (req.body); nesse caso usamos esse valor.
@@ -240,9 +246,9 @@ async function handleApi(req, res, url) {
     if (deny('Apenas o examinador cadastra pacientes', isExam)) return;
     const b = await readJson(req);
     const nome = str(b.nome, 120), prontuario = str(b.prontuario, 40), consPor = str(b.consentimentoPor, 120);
-    if (!nome || !prontuario) return fail(res, 400, 'Nome e prontuário são obrigatórios');
+    if (!nome || !prontuario) return fail(res, 400, 'Nome e atendimento são obrigatórios');
     if (b.consentimento !== true || !consPor) return fail(res, 400, 'É necessário registrar o consentimento (paciente ou responsável legal)');
-    if (await db.get('SELECT 1 x FROM pacientes WHERE prontuario = ?', prontuario)) return fail(res, 409, 'Prontuário já cadastrado');
+    if (await db.get('SELECT 1 x FROM pacientes WHERE prontuario = ?', prontuario)) return fail(res, 409, 'Atendimento já cadastrado');
     const nasc = str(b.dataNascimento, 10);
     if (nasc && !/^\d{4}-\d{2}-\d{2}$/.test(nasc)) return fail(res, 400, 'Data de nascimento inválida');
     const pid = id();
@@ -250,6 +256,17 @@ async function handleApi(req, res, url) {
       str(b.comorbidades, 500), str(b.braden, 5), consPor, now(), user.id, now());
     await audit(user, 'paciente_criado', prontuario);
     return send(res, 201, pacOut(await db.get('SELECT p.*, 0 total FROM pacientes p WHERE id = ?', pid)));
+  }
+  if ((m = pathname.match(/^\/api\/pacientes\/(\w+)\/pdf$/)) && method === 'GET') {
+    if (deny('Sem acesso', clinico)) return;
+    const p = await db.get('SELECT * FROM pacientes WHERE id = ?', m[1]);
+    if (!p) return fail(res, 404, 'Paciente não encontrado');
+    const registros = await db.all("SELECT * FROM registros WHERE paciente_id = ? AND status != 'rascunho' ORDER BY criado_em ASC", p.id);
+    if (!registros.length) return fail(res, 404, 'Este paciente ainda não tem registros enviados para avaliação');
+    const fotos = new Map(); // todas as fotos; a resposta é transmitida em partes (streaming), sem o limite de 4,5 MB
+    for (const r of registros) if (r.foto_arquivo) fotos.set(r.id, await storage.get(r.foto_arquivo));
+    await audit(user, 'historico_pdf', p.prontuario);
+    return sendPdf(res, relatorioHistorico({ paciente: p, registros, fotos, geradoPor: user.nome }), `historico-lesoes-${p.prontuario}.pdf`);
   }
   if ((m = pathname.match(/^\/api\/pacientes\/(\w+)$/))) {
     const p = await db.get('SELECT p.*, 0 total FROM pacientes p WHERE id = ?', m[1]);
@@ -292,7 +309,7 @@ async function handleApi(req, res, url) {
       await audit(user, 'registro_criado', rid);
       return send(res, 201, regOut(await db.get(`${REG_SQL} WHERE r.id = ?`, rid), user));
     }
-    if ((m = pathname.match(/^\/api\/registros\/(\w+)(?:\/(foto|enviar|avaliacao))?$/))) {
+    if ((m = pathname.match(/^\/api\/registros\/(\w+)(?:\/(foto|enviar|avaliacao|pdf))?$/))) {
       const r = await db.get(`${REG_SQL} WHERE r.id = ?`, m[1]);
       const sub = m[2];
       if (!visivel(r)) return fail(res, 404, 'Registro não encontrado');
@@ -330,6 +347,14 @@ async function handleApi(req, res, url) {
         if (!r.foto_arquivo) return fail(res, 404, 'Foto não encontrada');
         await audit(user, 'foto_visualizada', r.id);
         return send(res, 200, await storage.get(r.foto_arquivo), { 'Content-Type': r.foto_tipo, 'Cache-Control': 'private, max-age=300' });
+      }
+      if (sub === 'pdf' && method === 'GET') {
+        if (r.status !== 'avaliado') return fail(res, 409, 'O relatório fica disponível após a avaliação da estomaterapeuta');
+        const paciente = await db.get('SELECT * FROM pacientes WHERE id = ?', r.paciente_id);
+        const fotoBuf = r.foto_arquivo ? await storage.get(r.foto_arquivo) : null;
+        await audit(user, 'relatorio_pdf', r.id);
+        const dia = (r.enviado_em || r.criado_em).slice(0, 10);
+        return sendPdf(res, relatorioRegistro({ paciente, registro: r, fotoBuf, geradoPor: user.nome }), `relatorio-lesao-${paciente.prontuario}-${dia}.pdf`);
       }
       if (sub === 'enviar' && method === 'POST') {
         if (deny('Apenas o examinador envia para a estomaterapeuta', isExam)) return;
