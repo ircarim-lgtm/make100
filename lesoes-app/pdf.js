@@ -1,7 +1,7 @@
 // Relatórios em PDF (pdfkit): avaliação individual e histórico completo do paciente.
 import PDFDocument from 'pdfkit';
 
-const COR = '#0f5c6e', CLARO = '#e6f2f4', CINZA = '#68797f';
+const COR = '#0e7490', CLARO = '#e0f2fe', CINZA = '#68797f';
 const W = 595.28, H = 841.89, M = 50, CW = W - 2 * M;
 const TZ = 'America/Sao_Paulo';
 const ESTAGIO = { 1: 'Estágio 1', 2: 'Estágio 2', 3: 'Estágio 3', 4: 'Estágio 4', nao_classificavel: 'Não classificável', tissular_profunda: 'Lesão tissular profunda' };

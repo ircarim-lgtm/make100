@@ -134,9 +134,17 @@ async function checarAvisos() {
 }
 function startPolling() { clearInterval(pollTimer); pollTimer = setInterval(checarAvisos, 30000); }
 
+const LOGO = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+const ICON = {
+  home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>',
+  user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>',
+  out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5V3h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>',
+};
+const btnNav = (id, nome, ativo) => `<button id="${id}" class="${ativo ? 'ativo' : ''}" title="${nome}" aria-label="${nome}">${ICON[id === 'conta' ? 'user' : id]}<span>${nome}</span></button>`;
 function shell(inner) {
-  return `<header><h1>Lesões por Pressão<small>${esc(user.nome)} · ${PERFIL[user.perfil]}</small></h1>
-    <span id="badge" hidden></span><button id="home">Início</button><button id="conta">Conta</button><button id="out">Sair</button></header><main>${inner}</main>`;
+  return `<header><span class="logo">${LOGO}</span><h1>Lesões por Pressão<small>${esc(user.nome)} · ${PERFIL[user.perfil]}</small></h1>
+    <span id="badge" hidden></span></header>
+    <nav class="nav">${btnNav('home', 'Início', state.view === 'home')}${btnNav('conta', 'Conta', state.view === 'conta')}${btnNav('out', 'Sair')}</nav><main>${inner}</main>`;
 }
 function bindShell() {
   $('#home').onclick = () => go('home', { tab: null });
@@ -149,7 +157,7 @@ const bindRegs = () => $$('[data-reg]').forEach((c) => (c.onclick = () => go('re
 const bindPacs = () => $$('[data-pac]').forEach((c) => (c.onclick = () => go('paciente', { id: c.dataset.pac })));
 
 function renderLogin() {
-  $('#app').innerHTML = `<form class="card login" id="f"><h2>Entrar</h2>
+  $('#app').innerHTML = `<form class="login" id="f"><div class="marca"><div class="logo">${LOGO}</div><h2>Lesões por Pressão</h2><p>Acompanhamento com apoio da estomaterapia</p></div>
     <label>Usuário</label><input name="login" autocomplete="username" required>
     <label>Senha</label><input name="senha" type="password" autocomplete="current-password" required>
     <div class="err" id="e"></div><button class="primary" style="width:100%">Entrar</button></form>`;
