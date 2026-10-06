@@ -3,14 +3,14 @@
   --bg:#f3f6fb; --bg2:#e9eef7; --surface:#ffffff; --surface2:#f6f9fd; --tx:#0b1b2b; --mut:#5b6b7c; --bd:#e1e8f2;
   --c:#0891b2; --c2:#4f46e5; --grad:linear-gradient(135deg,#06b6d4 0%,#4f46e5 100%); --glow:0 6px 20px -6px rgba(79,70,229,.55);
   --ok:#059669; --okbg:#d9f7ea; --warn:#b45309; --warnbg:#fff1d6; --err:#dc2626; --errbg:#fee2e2;
-  --ia:rgba(79,70,229,.07); --ia-bd:rgba(79,70,229,.28); --shadow:0 1px 2px rgba(11,27,43,.05),0 8px 24px -12px rgba(11,27,43,.18);
+  --shadow:0 1px 2px rgba(11,27,43,.05),0 8px 24px -12px rgba(11,27,43,.18);
   --hdr:rgba(9,17,31,.82); --ring:0 0 0 3px rgba(6,182,212,.28);
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg:#070d18; --bg2:#0b1424; --surface:#0f1a2d; --surface2:#13213a; --tx:#e7eefb; --mut:#93a4bd; --bd:rgba(148,163,184,.16);
     --c:#22d3ee; --c2:#818cf8; --ok:#34d399; --okbg:rgba(52,211,153,.14); --warn:#fbbf24; --warnbg:rgba(251,191,36,.14); --err:#f87171; --errbg:rgba(248,113,113,.14);
-    --ia:rgba(129,140,248,.10); --ia-bd:rgba(129,140,248,.35); --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -14px rgba(0,0,0,.7);
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -14px rgba(0,0,0,.7);
     --hdr:rgba(5,10,20,.8); --ring:0 0 0 3px rgba(34,211,238,.3);
   }
 }
@@ -123,12 +123,6 @@ img.foto { display:block; width:100%; max-height:440px; object-fit:contain; marg
 .cmp { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 .cmp img { width:100%; height:240px; object-fit:contain; background:#050a14; border-radius:14px; border:1px solid var(--bd); }
 .cmp .ph { display:grid; place-items:center; height:240px; color:var(--mut); background:var(--surface2); border-radius:14px; }
-
-/* Área de IA */
-.ia { margin:10px 0 14px; padding:12px 14px; background:linear-gradient(135deg,var(--ia),rgba(6,182,212,.06)); border:1px solid var(--ia-bd); border-radius:16px; position:relative; }
-.ia > label:first-child,.ia > b:first-child { color:var(--c2); }
-.ia textarea { min-height:72px; }
-.ia p { margin:6px 0; }
 
 /* Tabelas */
 table { width:100%; border-collapse:collapse; font-size:13px; }

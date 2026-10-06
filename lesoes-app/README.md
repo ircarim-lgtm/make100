@@ -8,13 +8,12 @@ a **Estomaterapeuta** avalia (classificação, tratamento, orientações, prazo 
 - Consentimento (LGPD) obrigatório no cadastro; guarda quem consentiu e quando.
 - Avisos: contador no topo (atualiza a cada 30 s), aviso do navegador (opcional, app aberto) e webhook opcional (Slack/Teams/Discord) sem dados do paciente.
 - Comparação de fotos antes/depois por paciente.
-- **Sugestão de avaliação por IA (opcional, só para a estomaterapeuta):** a IA analisa a foto e as observações e propõe classificação, tratamento e orientações como **rascunho**. Ela "aprende" pelos exemplos: a cada análise recebe as avaliações anteriores já validadas pela estomaterapeuta (com foto), preferindo a mesma localização. Não há treinamento do modelo. Salvaguardas: desligada por padrão (o administrador ativa em Administração → IA); só para pacientes que autorizaram o uso de IA (consentimento separado); só pacientes com autorização entram como exemplo; o examinador nunca vê a sugestão; nada vira devolutiva sem a revisão dela. O app compara cada sugestão com a decisão final e mostra a **concordância** na aba IA, para decidir se a IA é confiável.
-- **Preenchimento por IA (opcional):** o profissional fala ou escreve um relato livre e a IA (Claude) organiza nos campos do formulário (local e observações da lesão; classificação, tratamento, orientações e prazo da estomaterapeuta). Ela só organiza o que foi dito, não inventa conduta nem classificação, e o profissional revisa antes de salvar. Ativa quando `ANTHROPIC_API_KEY` está definida; sem ela o bloco não aparece. Variáveis: `IA_MODEL` (padrão `claude-opus-5-5`), `IA_LIMITE_DIA` (padrão 150 usos por usuário/dia). O uso é registrado na auditoria, o conteúdo não. O texto vai para a Anthropic: instrua a equipe a não citar nomes de pacientes e inclua isso na avaliação do DPO.
 - **Relatórios em PDF** com foto: um por avaliação (botão na devolutiva) e o histórico completo do paciente, com todas as lesões em ordem cronológica.
-- **Ditado por voz** (🎤 Ditar) nos campos de texto do examinador e da estomaterapeuta, em português. Usa o reconhecimento de fala do navegador (Chrome/Edge/Android e Safari/iOS); o áudio é processado pelo serviço de voz do navegador (Google/Apple), não pelo app. Peça ao DPO para avaliar esse ponto.
+- **Ditado por voz** (🎤 Ditar) nos campos de texto do examinador e da estomaterapeuta, em português. Usa o reconhecimento de fala do próprio navegador (Chrome/Edge/Android e Safari/iOS), sem custo; o áudio é processado pelo serviço de voz do navegador (Google/Apple), não pelo app. Peça ao DPO para avaliar esse ponto.
 - Trilha de auditoria (logins, acessos a paciente e a fotos, envios, avaliações).
 - App instalável no celular (PWA); a foto é reduzida no aparelho antes do envio.
-- SQLite embutido (`node:sqlite`), sem dependências npm. Requer **Node 22.13+**.
+- Banco: SQLite embutido (`node:sqlite`) para uso local, ou Postgres quando há `DATABASE_URL`. Fotos: disco local ou Vercel Blob privado. Dependências: `pg`, `@vercel/blob`, `pdfkit`. Requer **Node 22.13+**.
+- Nenhum serviço pago por uso é necessário: o app não chama APIs externas cobradas.
 
 ## Rodar localmente
     npm start        # http://localhost:3000   (PORT, DATA_DIR opcionais)
@@ -22,7 +21,10 @@ a **Estomaterapeuta** avalia (classificação, tratamento, orientações, prazo 
 
 Usuários de demonstração (só fora de produção): `admin`/`admin1234`, `examinador`/`exam1234`, `estomaterapeuta`/`estoma1234`.
 
-## Publicar (HTTPS automático)
+## Publicar na Vercel
+Variáveis do projeto: `ADMIN_PASSWORD` (primeiro acesso), `DATABASE_URL` (Postgres, ex.: Neon) e `BLOB_STORE_ID` (Blob privado, criado ao conectar o store ao projeto). O diretório raiz do projeto é `lesoes-app`.
+
+## Publicar com Docker (HTTPS automático)
 Num servidor com Docker e um domínio apontando para ele:
 
     cp .env.example .env     # preencha DOMINIO e ADMIN_PASSWORD
