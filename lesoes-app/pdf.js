@@ -50,7 +50,8 @@ function dadosPaciente(doc, p) {
   secao(doc, 'Paciente');
   campo(doc, 'Nome', p.nome);
   campo(doc, 'Atendimento', p.prontuario);
-  campo(doc, 'Leito / setor', p.leito);
+  campo(doc, 'Setor', p.setor);
+  campo(doc, 'Leito', p.leito);
   const extra = [idade(p.data_nascimento), p.sexo, p.braden ? `Braden ${p.braden}` : ''].filter(Boolean).join(' · ');
   if (p.data_nascimento) campo(doc, 'Nascimento', `${dt(p.data_nascimento + 'T12:00:00Z')}${extra ? ' (' + extra + ')' : ''}`);
   else if (extra) campo(doc, 'Dados clínicos', extra);

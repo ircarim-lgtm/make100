@@ -219,3 +219,6 @@ body:has(.login-wrap) { padding-left:0; background:#070d18; }
   .kpi-v { font-size:28px; } .kpi-l { font-size:12px; line-height:1.25; }
   .hero { padding:18px; border-radius:20px; } .hero h1 { font-size:23px; }
 }
+
+.row.tres > * { min-width:92px; }
+.row.tres > :nth-child(2) { flex:1.7; }

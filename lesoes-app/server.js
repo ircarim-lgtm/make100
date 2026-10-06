@@ -116,18 +116,18 @@ const MAX_TENT = 5, BLOQUEIO_MS = 15 * 60 * 1000;
 
 // ---------- Mapeamento ----------
 const pacOut = (p) => ({
-  id: p.id, nome: p.nome, prontuario: p.prontuario, dataNascimento: p.data_nascimento, sexo: p.sexo, leito: p.leito,
+  id: p.id, nome: p.nome, prontuario: p.prontuario, dataNascimento: p.data_nascimento, sexo: p.sexo, setor: p.setor, leito: p.leito,
   comorbidades: p.comorbidades, braden: p.braden, consentimentoPor: p.consentimento_por, consentimentoEm: p.consentimento_em,
   criadoEm: p.criado_em, totalRegistros: p.total,
 });
-const REG_SQL = 'SELECT r.*, p.nome p_nome, p.prontuario p_pront, p.leito p_leito FROM registros r JOIN pacientes p ON p.id = r.paciente_id';
+const REG_SQL = 'SELECT r.*, p.nome p_nome, p.prontuario p_pront, p.setor p_setor, p.leito p_leito FROM registros r JOIN pacientes p ON p.id = r.paciente_id';
 const regOut = (r, user) => ({
   id: r.id, pacienteId: r.paciente_id, local: r.local, observacoes: r.observacoes, status: r.status,
   foto: r.foto_arquivo ? { tipo: r.foto_tipo, enviadaEm: r.foto_em } : null,
   criadoPor: r.criado_por, criadoPorNome: r.criado_por_nome, criadoEm: r.criado_em, enviadoEm: r.enviado_em,
   avaliacao: r.avaliacao ? JSON.parse(r.avaliacao) : null,
   novo: user.perfil === 'examinador' && r.status === 'avaliado' && !r.avaliacao_visto && r.criado_por === user.id,
-  paciente: { id: r.paciente_id, nome: r.p_nome, prontuario: r.p_pront, leito: r.p_leito },
+  paciente: { id: r.paciente_id, nome: r.p_nome, prontuario: r.p_pront, setor: r.p_setor, leito: r.p_leito },
 });
 const userOut = (u) => ({ id: u.id, nome: u.nome, login: u.login, perfil: u.perfil, ativo: !!u.ativo, criadoEm: u.criado_em });
 
@@ -239,21 +239,22 @@ async function handleApi(req, res, url) {
     if (isAdmin) return send(res, 200, await db.all('SELECT id, nome, prontuario FROM pacientes WHERE lower(nome) LIKE ? OR lower(prontuario) LIKE ? ORDER BY nome LIMIT 200', q, q));
     const filtro = isEstoma ? "AND r.status != 'rascunho'" : '';
     const rows = await db.all(`SELECT p.*, CAST((SELECT COUNT(*) FROM registros r WHERE r.paciente_id = p.id ${filtro}) AS INTEGER) total
-      FROM pacientes p WHERE lower(p.nome) LIKE ? OR lower(p.prontuario) LIKE ? ORDER BY p.nome LIMIT 200`, q, q);
+      FROM pacientes p WHERE lower(p.nome) LIKE ? OR lower(p.prontuario) LIKE ? OR lower(p.setor) LIKE ? ORDER BY p.nome LIMIT 200`, q, q, q);
     return send(res, 200, rows.map(pacOut));
   }
   if (pathname === '/api/pacientes' && method === 'POST') {
     if (deny('Apenas o examinador cadastra pacientes', isExam)) return;
     const b = await readJson(req);
-    const nome = str(b.nome, 120), prontuario = str(b.prontuario, 40), consPor = str(b.consentimentoPor, 120);
+    const nome = str(b.nome, 120), prontuario = str(b.prontuario, 40), setor = str(b.setor, 60), consPor = str(b.consentimentoPor, 120);
     if (!nome || !prontuario) return fail(res, 400, 'Nome e atendimento são obrigatórios');
+    if (!setor) return fail(res, 400, 'Informe o setor do paciente');
     if (b.consentimento !== true || !consPor) return fail(res, 400, 'É necessário registrar o consentimento (paciente ou responsável legal)');
     if (await db.get('SELECT 1 x FROM pacientes WHERE prontuario = ?', prontuario)) return fail(res, 409, 'Atendimento já cadastrado');
     const nasc = str(b.dataNascimento, 10);
     if (nasc && !/^\d{4}-\d{2}-\d{2}$/.test(nasc)) return fail(res, 400, 'Data de nascimento inválida');
     const pid = id();
-    await db.run('INSERT INTO pacientes (id,nome,prontuario,data_nascimento,sexo,leito,comorbidades,braden,consentimento_por,consentimento_em,criado_por,criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
-      pid, nome, prontuario, nasc, str(b.sexo, 20), str(b.leito, 40), str(b.comorbidades, 500), str(b.braden, 5), consPor, now(), user.id, now());
+    await db.run('INSERT INTO pacientes (id,nome,prontuario,data_nascimento,sexo,setor,leito,comorbidades,braden,consentimento_por,consentimento_em,criado_por,criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      pid, nome, prontuario, nasc, str(b.sexo, 20), setor, str(b.leito, 40), str(b.comorbidades, 500), str(b.braden, 5), consPor, now(), user.id, now());
     await audit(user, 'paciente_criado', prontuario);
     return send(res, 201, pacOut(await db.get('SELECT p.*, 0 total FROM pacientes p WHERE id = ?', pid)));
   }

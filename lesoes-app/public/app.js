@@ -166,7 +166,7 @@ function cardRegistro(r) {
 }
 function cardPaciente(p) {
   return `<div class="card click pac" data-pac="${p.id}">${avatar(p.nome)}<div class="pac-main"><b>${esc(p.nome)}</b>
-    <div class="chips"><span class="chip">Atend. ${esc(p.prontuario)}</span>${p.leito ? `<span class="chip">${esc(p.leito)}</span>` : ''}<span class="chip">${p.totalRegistros} registro(s)</span></div></div>${I('chev')}</div>`;
+    <div class="chips"><span class="chip">Atend. ${esc(p.prontuario)}</span>${p.setor ? `<span class="chip">${esc(p.setor)}</span>` : ''}${p.leito ? `<span class="chip">Leito ${esc(p.leito)}</span>` : ''}<span class="chip">${p.totalRegistros} registro(s)</span></div></div>${I('chev')}</div>`;
 }
 async function homeEstoma() {
   const tab = state.tab || 'enviado';
@@ -187,7 +187,7 @@ async function homeExam() {
   $('#app').innerHTML = shell(`${hero(`Olá, ${esc(primeiroNome(user.nome))} 👋`, hoje(), `<button id="novo">${I('plus')} Novo paciente</button>`)}
     <div class="kpis">${kpi('users', 'Pacientes', pacs.length)}${kpi('clock', 'Aguardando avaliação', aguardando, 'warn')}${kpi('check', 'Novas devolutivas', novas, 'ok')}</div>
     <div class="grid2"><section><div class="sec-h"><h2>Pacientes</h2></div>
-      <div class="search">${I('search')}<input id="q" placeholder="Buscar por nome ou nº do atendimento" value="${esc(q)}"></div>
+      <div class="search">${I('search')}<input id="q" placeholder="Buscar por nome, atendimento ou setor" value="${esc(q)}"></div>
       ${pacs.map(cardPaciente).join('') || vazio('users', 'Nenhum paciente encontrado', 'Cadastre o primeiro em “Novo paciente”.')}</section>
     <section><div class="sec-h"><h2>Últimos registros</h2></div>${regs.slice(0, 10).map(cardRegistro).join('') || vazio('camera', 'Sem registros ainda', 'Abra um paciente e registre a primeira lesão.')}</section></div>`);
   bindShell(); bindRegs(); bindPacs();
@@ -265,7 +265,7 @@ function renderConta() {
 function renderNovoPaciente() {
   $('#app').innerHTML = shell(`<form class="card pagina-form" id="f"><h2>Cadastrar paciente</h2>
     <label>Nome completo *</label><input name="nome" required>
-    <div class="row"><div><label>Atendimento *</label><input name="prontuario" required></div><div><label>Leito / setor</label><input name="leito"></div></div>
+    <div class="row tres"><div><label>Atendimento *</label><input name="prontuario" required></div><div><label>Setor *</label><input name="setor" required placeholder="Ex.: UTI, Clínica Médica"></div><div><label>Leito</label><input name="leito" placeholder="Ex.: 12A"></div></div>
     <div class="row"><div><label>Data de nascimento</label><input name="dataNascimento" type="date"></div>
       <div><label>Sexo</label><select name="sexo"><option value="">—</option><option>Feminino</option><option>Masculino</option><option>Outro</option></select></div>
       <div><label>Escala de Braden</label><input name="braden" type="number" min="6" max="23" placeholder="6 a 23"></div></div>
@@ -306,7 +306,7 @@ async function renderPaciente() {
   const p = await api('/pacientes/' + state.id);
   const idade = p.dataNascimento ? Math.floor((Date.now() - new Date(p.dataNascimento)) / 31557600000) + ' anos' : '';
   $('#app').innerHTML = shell(`<div class="card"><div class="pac-head">${avatar(p.nome, 'lg')}<div style="min-width:0"><h2>${esc(p.nome)}</h2>
-      <div class="chips"><span class="chip">Atend. ${esc(p.prontuario)}</span>${p.leito ? `<span class="chip">${esc(p.leito)}</span>` : ''}${idade ? `<span class="chip">${idade}</span>` : ''}${p.sexo ? `<span class="chip">${esc(p.sexo)}</span>` : ''}${p.braden ? `<span class="chip">Braden ${esc(p.braden)}</span>` : ''}</div></div></div>
+      <div class="chips"><span class="chip">Atend. ${esc(p.prontuario)}</span>${p.setor ? `<span class="chip">${esc(p.setor)}</span>` : ''}${p.leito ? `<span class="chip">Leito ${esc(p.leito)}</span>` : ''}${idade ? `<span class="chip">${idade}</span>` : ''}${p.sexo ? `<span class="chip">${esc(p.sexo)}</span>` : ''}${p.braden ? `<span class="chip">Braden ${esc(p.braden)}</span>` : ''}</div></div></div>
     ${p.comorbidades ? `<p style="margin:14px 0 4px">${esc(p.comorbidades)}</p>` : ''}
     <div class="muted" style="margin-top:10px">Consentimento: ${esc(p.consentimentoPor)} em ${fmt(p.consentimentoEm)}</div>
     <div class="acoes">${user.perfil === 'examinador' ? `<button class="primary" id="nova">${I('plus')} Nova lesão / foto</button>` : ''}
@@ -347,7 +347,7 @@ async function renderRegistro() {
       <button class="danger small" id="excluir" style="margin-top:8px">Excluir rascunho</button>` : ''}
     <div class="err" id="e"></div></div></div>
   <div class="col-main"><div class="card"><div class="info-h">${avatar(r.paciente?.nome || '?')}<div><h2>${esc(r.paciente?.nome)}</h2>
-      <div class="chips"><span class="chip">Atend. ${esc(r.paciente?.prontuario)}</span><span class="chip">${esc(r.local) || 'local não informado'}</span></div></div>${badge(r.status)}</div>
+      <div class="chips"><span class="chip">Atend. ${esc(r.paciente?.prontuario)}</span>${r.paciente?.setor ? `<span class="chip">${esc(r.paciente.setor)}</span>` : ''}<span class="chip">${esc(r.local) || 'local não informado'}</span></div></div>${badge(r.status)}</div>
     <div class="muted">Registrado por ${esc(r.criadoPorNome)} em ${fmt(r.criadoEm)}${r.enviadoEm ? ' · Enviado em ' + fmt(r.enviadoEm) : ''}</div>
     ${r.observacoes ? `<p style="margin:10px 0 0">${esc(r.observacoes)}</p>` : ''}</div>
   ${av ? `<div class="card"><h2>Devolutiva da estomaterapeuta</h2><div class="muted">${esc(av.avaliadoPorNome)} · ${fmt(av.avaliadoEm)}</div>

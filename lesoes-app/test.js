@@ -22,7 +22,7 @@ const call = async (p, { token, method = 'GET', body, type } = {}) => {
 const login = (l, s) => call('/login', { method: 'POST', body: { login: l, senha: s } });
 const tok = async (l, s) => (await login(l, s)).data.token;
 const jpg = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
-const PAC = { nome: 'Maria Silva', prontuario: '123', leito: '12A', consentimento: true, consentimentoPor: 'a própria paciente' };
+const PAC = { nome: 'Maria Silva', prontuario: '123', setor: 'UTI Adulto', leito: '12A', consentimento: true, consentimentoPor: 'a própria paciente' };
 
 // --- login e segurança básica
 assert.equal((await login('examinador', 'errada')).status, 401);
@@ -37,7 +37,13 @@ assert.equal((await fetch(base + '/..%2fserver.js')).status, 404);
 assert.equal((await call('/pacientes', { token: es, method: 'POST', body: PAC })).status, 403);
 assert.equal((await call('/pacientes', { token: ex, method: 'POST', body: { nome: 'Maria' } })).status, 400);
 assert.equal((await call('/pacientes', { token: ex, method: 'POST', body: { ...PAC, consentimento: false } })).status, 400);
+const { setor: _s, ...semSetor } = PAC;
+const rSemSetor = await call('/pacientes', { token: ex, method: 'POST', body: { ...semSetor, prontuario: '999' } });
+assert.equal(rSemSetor.status, 400); assert.match(rSemSetor.data.erro, /setor/i);
 const pac = (await call('/pacientes', { token: ex, method: 'POST', body: PAC })).data;
+assert.equal(pac.setor, 'UTI Adulto'); assert.equal(pac.leito, '12A');
+assert.equal((await call('/pacientes?q=uti', { token: ex })).data.length, 1); // busca por setor
+assert.equal((await call('/pacientes?q=cardiologia', { token: ex })).data.length, 0);
 assert.equal(pac.consentimentoPor, 'a própria paciente');
 assert.equal((await call('/pacientes', { token: ex, method: 'POST', body: { ...PAC, nome: 'Outra' } })).status, 409);
 

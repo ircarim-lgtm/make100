@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE TABLE IF NOT EXISTS tentativas (chave TEXT PRIMARY KEY, n INTEGER NOT NULL, ate BIGINT NOT NULL);
 CREATE TABLE IF NOT EXISTS pacientes (
   id TEXT PRIMARY KEY, nome TEXT NOT NULL, prontuario TEXT NOT NULL UNIQUE,
-  data_nascimento TEXT, sexo TEXT, leito TEXT, comorbidades TEXT, braden TEXT,
+  data_nascimento TEXT, sexo TEXT, setor TEXT, leito TEXT, comorbidades TEXT, braden TEXT,
   consentimento_por TEXT NOT NULL, consentimento_em TEXT NOT NULL,
   criado_por TEXT NOT NULL, criado_em TEXT NOT NULL
 );
@@ -40,6 +40,7 @@ async function openPg(url) {
     await c.query('BEGIN');
     await c.query('SELECT pg_advisory_xact_lock(7424)');
     await c.query(TABLES('SERIAL PRIMARY KEY'));
+    await c.query('ALTER TABLE pacientes ADD COLUMN IF NOT EXISTS setor TEXT');
     await c.query('COMMIT');
   } catch (e) { await c.query('ROLLBACK').catch(() => {}); throw e; } finally { c.release(); }
   return {
@@ -54,6 +55,7 @@ async function openSqlite(file) {
   const db = new DatabaseSync(file);
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
   db.exec(TABLES('INTEGER PRIMARY KEY AUTOINCREMENT'));
+  if (!db.prepare('PRAGMA table_info(pacientes)').all().some((c) => c.name === 'setor')) db.exec('ALTER TABLE pacientes ADD COLUMN setor TEXT');
   return {
     all: async (sql, ...p) => db.prepare(sql).all(...p),
     get: async (sql, ...p) => db.prepare(sql).get(...p),
