@@ -135,32 +135,57 @@ async function checarAvisos() {
 function startPolling() { clearInterval(pollTimer); pollTimer = setInterval(checarAvisos, 30000); }
 
 const LOGO = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
-const ICON = {
-  home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>',
-  user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>',
-  out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5V3h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>',
+const P = {
+  home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>', user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>',
+  out: '<path d="M9 21H5V3h4"/><path d="M16 17l5-5-5-5M21 12H9"/>', plus: '<path d="M12 5v14M5 12h14"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.7-3.4 3.2-5 6.5-5s5.8 1.6 6.5 5"/><circle cx="17.5" cy="9" r="2.5"/><path d="M17 14.5c2.6.2 4.3 1.6 4.8 4.5"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', check: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.5"/>', tick: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>', image: '<rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M4 18l5-5 4 4 3-3 4 4"/>',
+  chev: '<path d="M9 6l6 6-6 6"/>', file: '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>',
+  spark: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>', camera: '<path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  inbox: '<path d="M4 13l2-8h12l2 8v6H4z"/><path d="M4 13h5l1 2h4l1-2h5"/>',
 };
-const btnNav = (id, nome, ativo) => `<button id="${id}" class="${ativo ? 'ativo' : ''}" title="${nome}" aria-label="${nome}">${ICON[id === 'conta' ? 'user' : id]}<span>${nome}</span></button>`;
+const I = (n) => `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n]}</svg>`;
+const hue = (t) => { let h = 0; for (const ch of String(t)) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
+const limpo = (n) => String(n || '').replace(/\(.*?\)/g, '').replace(/^\s*(enf|dr|dra|sr|sra)\.?\s+/i, '').trim();
+const iniciais = (n) => { const p = (limpo(n) || '?').split(/\s+/); return ((p[0]?.[0] || '') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase(); };
+const avatar = (nome, tam = '') => `<span class="avatar ${tam}" style="--h:${hue(nome)}">${esc(iniciais(nome))}</span>`;
+const primeiroNome = (n) => limpo(n).split(/\s+/)[0];
+const hoje = () => { const d = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }); return d[0].toUpperCase() + d.slice(1); };
+const hero = (titulo, sub, acao = '') => `<section class="hero"><div><h1>${titulo}</h1><p>${sub}</p></div>${acao}</section>`;
+const kpi = (icone, rotulo, valor, tom = '') => `<div class="kpi ${tom}"><span class="kpi-ic">${I(icone)}</span><div><div class="kpi-v">${valor}</div><div class="kpi-l">${rotulo}</div></div></div>`;
+const vazio = (icone, titulo, dica = '') => `<div class="empty">${I(icone)}<p><b>${titulo}</b></p>${dica ? `<p>${dica}</p>` : ''}</div>`;
+const SKELETON = '<div class="skel"><i></i><i></i><i></i></div>';
+
+const btnNav = (id, nome, ativo) => `<button id="${id}" class="${ativo ? 'ativo' : ''}" title="${nome}" aria-label="${nome}">${I(id === 'conta' ? 'user' : id)}<span>${nome}</span></button>`;
 function shell(inner) {
-  return `<header><span class="logo">${LOGO}</span><h1>Lesões por Pressão<small>${esc(user.nome)} · ${PERFIL[user.perfil]}</small></h1>
-    <span id="badge" hidden></span></header>
-    <nav class="nav">${btnNav('home', 'Início', state.view === 'home')}${btnNav('conta', 'Conta', state.view === 'conta')}${btnNav('out', 'Sair')}</nav><main>${inner}</main>`;
+  return `<aside class="side"><div class="brand"><span class="logo">${LOGO}</span><div><b>Lesões por Pressão</b><small>Estomaterapia</small></div></div>
+    <nav class="nav">${btnNav('home', 'Início', state.view === 'home')}${btnNav('conta', 'Conta', state.view === 'conta')}${btnNav('out', 'Sair')}</nav>
+    <div class="usercard">${avatar(user.nome, 'sm')}<div><b>${esc(user.nome)}</b><small>${PERFIL[user.perfil]}</small></div></div></aside>
+    <header class="appbar"><span class="logo">${LOGO}</span><h1>Lesões por Pressão<small>${esc(user.nome)} · ${PERFIL[user.perfil]}</small></h1></header>
+    <span id="badge" hidden></span><main>${inner}</main>`;
 }
 function bindShell() {
   $('#home').onclick = () => go('home', { tab: null });
   $('#badge').onclick = () => go('home', { tab: null });
   $('#conta').onclick = () => go('conta');
   $('#out').onclick = async () => { try { await api('/logout', { method: 'POST' }); } catch { /* já expirou */ } logout(); };
-  checarAvisos();
+  checarAvisos(); lazyFotos();
 }
+// fotos em miniatura só carregam quando aparecem na tela
+const io = 'IntersectionObserver' in window ? new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { io.unobserve(e.target); carregarFoto(e.target, e.target.dataset.foto); } }), { rootMargin: '200px' }) : null;
+function lazyFotos() { $$('img[data-foto]').forEach((img) => (io ? io.observe(img) : carregarFoto(img, img.dataset.foto))); }
 const bindRegs = () => $$('[data-reg]').forEach((c) => (c.onclick = () => go('registro', { id: c.dataset.reg })));
 const bindPacs = () => $$('[data-pac]').forEach((c) => (c.onclick = () => go('paciente', { id: c.dataset.pac })));
 
 function renderLogin() {
-  $('#app').innerHTML = `<form class="login" id="f"><div class="marca"><div class="logo">${LOGO}</div><h2>Lesões por Pressão</h2><p>Acompanhamento com apoio da estomaterapia</p></div>
+  $('#app').innerHTML = `<div class="login-wrap"><section class="login-hero"><div class="logo">${LOGO}</div>
+    <h1>Cada lesão, acompanhada de perto.</h1><p>Registre a foto, envie para a estomaterapeuta e receba a devolutiva dentro do app.</p>
+    <ul><li>${I('camera')} Foto da lesão em segundos</li><li>${I('spark')} Devolutiva da estomaterapeuta no app</li><li>${I('file')} Histórico e relatório em PDF</li></ul></section>
+    <form class="login" id="f"><div class="marca"><div class="logo">${LOGO}</div><h2>Lesões por Pressão</h2><p>Acompanhamento com apoio da estomaterapia</p></div>
     <label>Usuário</label><input name="login" autocomplete="username" required>
     <label>Senha</label><input name="senha" type="password" autocomplete="current-password" required>
-    <div class="err" id="e"></div><button class="primary" style="width:100%">Entrar</button></form>`;
+    <div class="err" id="e"></div><button class="primary" style="width:100%">Entrar</button></form></div>`;
   $('#f').onsubmit = async (ev) => {
     ev.preventDefault(); const f = new FormData(ev.target);
     try {
@@ -173,17 +198,25 @@ function renderLogin() {
 
 // ---------- Listas ----------
 function cardRegistro(r) {
-  return `<div class="card click ${r.novo ? 'novo' : ''}" data-reg="${r.id}"><div class="top"><div><b>${esc(r.paciente?.nome)}</b>
-    <div class="muted">Atend. ${esc(r.paciente?.prontuario)} · ${esc(r.paciente?.leito) || 'sem leito'} · ${esc(r.local) || 'local não informado'}</div>
-    <div class="muted">${r.status === 'rascunho' ? 'Criado' : 'Enviado'} em ${fmt(r.enviadoEm || r.criadoEm)}</div></div>
-    <div>${r.novo ? '<span class="badge b-novo">Nova devolutiva</span> ' : ''}${badge(r.status)}</div></div></div>`;
+  return `<div class="card click reg ${r.novo ? 'novo' : ''}" data-reg="${r.id}">
+    <div class="thumb">${r.foto ? `<img data-foto="${r.id}" alt="" />` : I('image')}</div>
+    <div class="reg-main"><b>${esc(r.paciente?.nome)}</b>
+      <div class="muted">${esc(r.local) || 'local não informado'} · Atend. ${esc(r.paciente?.prontuario)}</div>
+      <div class="muted">${r.status === 'rascunho' ? 'Criado' : 'Enviado'} em ${fmt(r.enviadoEm || r.criadoEm)}</div></div>
+    <div class="reg-st">${r.novo ? '<span class="badge b-novo">Nova devolutiva</span>' : ''}${badge(r.status)}</div></div>`;
+}
+function cardPaciente(p) {
+  return `<div class="card click pac" data-pac="${p.id}">${avatar(p.nome)}<div class="pac-main"><b>${esc(p.nome)}</b>
+    <div class="chips"><span class="chip">Atend. ${esc(p.prontuario)}</span>${p.leito ? `<span class="chip">${esc(p.leito)}</span>` : ''}<span class="chip">${p.totalRegistros} registro(s)</span></div></div>${I('chev')}</div>`;
 }
 async function homeEstoma() {
   const tab = state.tab || 'enviado';
-  const list = await api('/registros?status=' + tab);
-  $('#app').innerHTML = shell(`<h2>Casos para avaliação</h2>
+  const [ag, av] = await Promise.all([api('/registros?status=enviado'), api('/registros?status=avaliado')]);
+  const list = tab === 'enviado' ? ag : av;
+  $('#app').innerHTML = shell(`${hero(`Olá, ${esc(primeiroNome(user.nome))} 👋`, hoje())}
+    <div class="kpis">${kpi('clock', 'Aguardando avaliação', ag.length, 'warn')}${kpi('check', 'Avaliados', av.length, 'ok')}</div>
     <div class="tabs"><button data-t="enviado" class="${tab === 'enviado' ? 'on' : ''}">Aguardando</button><button data-t="avaliado" class="${tab === 'avaliado' ? 'on' : ''}">Avaliados</button></div>
-    ${list.map(cardRegistro).join('') || '<p class="muted">Nenhum caso nesta lista.</p>'}`);
+    ${list.map(cardRegistro).join('') || vazio('inbox', tab === 'enviado' ? 'Nenhum caso aguardando' : 'Nenhum caso avaliado ainda', tab === 'enviado' ? 'Quando o examinador enviar um caso, ele aparece aqui.' : '')}`);
   bindShell(); bindRegs();
   $$('[data-t]').forEach((b) => (b.onclick = () => go('home', { tab: b.dataset.t })));
 }
@@ -191,11 +224,13 @@ async function homeExam() {
   const q = state.q || '';
   const [pacs, regs] = await Promise.all([api('/pacientes?q=' + encodeURIComponent(q)), api('/registros')]);
   regs.sort((a, b) => Number(b.novo) - Number(a.novo));
-  $('#app').innerHTML = shell(`<div class="row nofill" style="justify-content:space-between"><h2>Pacientes</h2><button class="primary" id="novo">+ Novo paciente</button></div>
-    <input id="q" placeholder="Buscar por nome ou nº do atendimento" value="${esc(q)}"><div class="spacer"></div>
-    ${pacs.map((p) => `<div class="card click" data-pac="${p.id}"><b>${esc(p.nome)}</b>
-      <div class="muted">Atend. ${esc(p.prontuario)} · ${esc(p.leito) || 'sem leito'} · ${p.totalRegistros} registro(s)</div></div>`).join('') || '<p class="muted">Nenhum paciente encontrado.</p>'}
-    <h2 style="margin-top:20px">Últimos registros</h2>${regs.slice(0, 10).map(cardRegistro).join('') || '<p class="muted">Sem registros.</p>'}`);
+  const aguardando = regs.filter((r) => r.status === 'enviado').length, novas = regs.filter((r) => r.novo).length;
+  $('#app').innerHTML = shell(`${hero(`Olá, ${esc(primeiroNome(user.nome))} 👋`, hoje(), `<button id="novo">${I('plus')} Novo paciente</button>`)}
+    <div class="kpis">${kpi('users', 'Pacientes', pacs.length)}${kpi('clock', 'Aguardando avaliação', aguardando, 'warn')}${kpi('check', 'Novas devolutivas', novas, 'ok')}</div>
+    <div class="grid2"><section><div class="sec-h"><h2>Pacientes</h2></div>
+      <div class="search">${I('search')}<input id="q" placeholder="Buscar por nome ou nº do atendimento" value="${esc(q)}"></div>
+      ${pacs.map(cardPaciente).join('') || vazio('users', 'Nenhum paciente encontrado', 'Cadastre o primeiro em “Novo paciente”.')}</section>
+    <section><div class="sec-h"><h2>Últimos registros</h2></div>${regs.slice(0, 10).map(cardRegistro).join('') || vazio('camera', 'Sem registros ainda', 'Abra um paciente e registre a primeira lesão.')}</section></div>`);
   bindShell(); bindRegs(); bindPacs();
   $('#novo').onclick = () => go('novoPaciente');
   $('#q').onchange = (e) => { state.q = e.target.value; render(); };
@@ -240,7 +275,7 @@ async function homeAdmin() {
     body = `<div class="card"><table><tr><th>Quando</th><th>Quem</th><th>Ação</th><th>Alvo</th></tr>${log.map((l) =>
       `<tr><td>${fmt(l.em)}</td><td>${esc(l.user_nome || '—')}</td><td>${esc(l.acao)}</td><td>${esc(l.alvo || '')}</td></tr>`).join('')}</table></div>`;
   }
-  $('#app').innerHTML = shell(`<h2>Administração</h2>${tabs}${body}`);
+  $('#app').innerHTML = shell(`${hero('Administração', 'Usuários, privacidade, IA e auditoria')}${tabs}${body}`);
   bindShell();
   $$('[data-t]').forEach((b) => (b.onclick = () => go('home', { tab: b.dataset.t, q: '' })));
   if ($('#ia-liga')) $('#ia-liga').onchange = async (e) => { try { await api('/ia/config', { method: 'PUT', body: { sugestaoAtiva: e.target.checked } }); } catch (x) { $('#e').textContent = x.message; e.target.checked = !e.target.checked; } };
@@ -264,7 +299,7 @@ async function homeAdmin() {
 // ---------- Conta ----------
 function renderConta() {
   const podeAviso = 'Notification' in window && user.perfil !== 'admin';
-  $('#app').innerHTML = shell(`<form class="card" id="f"><h2>Minha conta</h2><div class="muted">${esc(user.nome)} · ${esc(user.login)} · ${PERFIL[user.perfil]}</div>
+  $('#app').innerHTML = shell(`<form class="card pagina-form" id="f"><h2>Minha conta</h2><div class="muted">${esc(user.nome)} · ${esc(user.login)} · ${PERFIL[user.perfil]}</div>
     <h3>Alterar senha</h3><label>Senha atual</label><input name="atual" type="password" autocomplete="current-password" required>
     <label>Nova senha (mín. 8 caracteres)</label><input name="nova" type="password" minlength="8" autocomplete="new-password" required>
     <div class="err" id="e"></div><button class="primary">Salvar nova senha</button></form>
@@ -282,7 +317,7 @@ function renderConta() {
 
 // ---------- Paciente ----------
 function renderNovoPaciente() {
-  $('#app').innerHTML = shell(`<form class="card" id="f"><h2>Cadastrar paciente</h2>
+  $('#app').innerHTML = shell(`<form class="card pagina-form" id="f"><h2>Cadastrar paciente</h2>
     <label>Nome completo *</label><input name="nome" required>
     <div class="row"><div><label>Atendimento *</label><input name="prontuario" required></div><div><label>Leito / setor</label><input name="leito"></div></div>
     <div class="row"><div><label>Data de nascimento</label><input name="dataNascimento" type="date"></div>
@@ -325,16 +360,17 @@ function bindComparar(regs) {
 async function renderPaciente() {
   const p = await api('/pacientes/' + state.id);
   const idade = p.dataNascimento ? Math.floor((Date.now() - new Date(p.dataNascimento)) / 31557600000) + ' anos' : '';
-  $('#app').innerHTML = shell(`<div class="card"><h2>${esc(p.nome)}</h2>
-    <div class="muted">Atend. ${esc(p.prontuario)} · ${esc(p.leito) || 'sem leito'} ${idade ? '· ' + idade : ''} ${p.sexo ? '· ' + esc(p.sexo) : ''} ${p.braden ? '· Braden ' + esc(p.braden) : ''}</div>
-    <div class="muted">Consentimento: ${esc(p.consentimentoPor)} em ${fmt(p.consentimentoEm)}</div>
+  $('#app').innerHTML = shell(`<div class="card"><div class="pac-head">${avatar(p.nome, 'lg')}<div style="min-width:0"><h2>${esc(p.nome)}</h2>
+      <div class="chips"><span class="chip">Atend. ${esc(p.prontuario)}</span>${p.leito ? `<span class="chip">${esc(p.leito)}</span>` : ''}${idade ? `<span class="chip">${idade}</span>` : ''}${p.sexo ? `<span class="chip">${esc(p.sexo)}</span>` : ''}${p.braden ? `<span class="chip">Braden ${esc(p.braden)}</span>` : ''}</div></div></div>
+    ${p.comorbidades ? `<p style="margin:14px 0 4px">${esc(p.comorbidades)}</p>` : ''}
+    <div class="muted" style="margin-top:10px">Consentimento: ${esc(p.consentimentoPor)} em ${fmt(p.consentimentoEm)}</div>
     <div class="muted">Análise por IA: ${p.consentimentoIa ? '<b>autorizada</b>' : 'não autorizada'} ${user.perfil === 'examinador' && !p.consentimentoIa ? '<button class="link" id="cons-ia">registrar autorização</button>' : ''}</div>
-    ${p.comorbidades ? `<p>${esc(p.comorbidades)}</p>` : ''}
-    ${user.perfil === 'examinador' ? '<button class="primary" id="nova">+ Nova lesão / foto</button>' : ''}
-    ${p.registros.some((r) => r.status !== 'rascunho') ? '<button id="pdfhist">📄 Baixar histórico completo (PDF)</button>' : ''}<div class="err" id="e"></div></div>
-    <div class="card"><h2>Evolução (comparar fotos)</h2>${comparar(p.registros)}</div>
-    <h2>Histórico de lesões</h2>${p.registros.map(cardRegistro).join('') || '<p class="muted">Nenhum registro ainda.</p>'}
-    <button id="back">← Voltar</button>`);
+    <div class="acoes">${user.perfil === 'examinador' ? `<button class="primary" id="nova">${I('plus')} Nova lesão / foto</button>` : ''}
+    ${p.registros.some((r) => r.status !== 'rascunho') ? `<button id="pdfhist">${I('file')} Baixar histórico completo (PDF)</button>` : ''}</div><div class="err" id="e"></div></div>
+    <div class="card"><div class="sec-h" style="margin-top:0"><h2>Evolução</h2></div>${comparar(p.registros)}</div>
+    <div class="sec-h"><h2>Histórico de lesões</h2></div>
+    ${p.registros.length ? `<div class="timeline">${p.registros.map((r) => `<div class="tl-item"><span class="tl-dot ${r.status}"></span>${cardRegistro(r)}</div>`).join('')}</div>` : vazio('camera', 'Nenhum registro ainda', 'Use “Nova lesão / foto” para começar o acompanhamento.')}
+    <div class="acoes"><button id="back">← Voltar</button></div>`);
   bindShell(); bindRegs(); bindComparar(p.registros);
   $('#back').onclick = () => go('home');
   if ($('#cons-ia')) $('#cons-ia').onclick = async () => {
@@ -347,7 +383,7 @@ async function renderPaciente() {
 
 // ---------- Registro ----------
 function renderNovoRegistro() {
-  $('#app').innerHTML = shell(`<form class="card" id="f"><h2>Nova lesão</h2>
+  $('#app').innerHTML = shell(`<form class="card pagina-form" id="f"><h2>Nova lesão</h2>
     ${blocoIA()}
     <label>Localização anatômica</label><input name="local" data-voz placeholder="Ex.: região sacral, calcâneo direito">
     <label>Observações (tamanho, secreção, dor, curativo atual...)</label><textarea name="observacoes" data-voz></textarea>
@@ -363,23 +399,26 @@ function renderNovoRegistro() {
 async function renderRegistro() {
   const r = await api('/registros/' + state.id);
   const isEx = user.perfil === 'examinador', av = r.avaliacao, rascunho = r.status === 'rascunho';
-  $('#app').innerHTML = shell(`<div class="card"><div class="top"><div><h2 style="margin:0">${esc(r.paciente?.nome)}</h2>
-      <div class="muted">Atend. ${esc(r.paciente?.prontuario)} · ${esc(r.local) || 'local não informado'}</div>
-      <div class="muted">Registrado por ${esc(r.criadoPorNome)} em ${fmt(r.criadoEm)}${r.enviadoEm ? ' · Enviado em ' + fmt(r.enviadoEm) : ''}</div></div>${badge(r.status)}</div>
-    ${r.observacoes ? `<p>${esc(r.observacoes)}</p>` : ''}
-    ${r.foto ? '<img class="foto" id="foto" alt="Foto da lesão">' : '<p class="muted">Nenhuma foto anexada.</p>'}
+  const agora = rascunho ? 0 : r.status === 'enviado' ? 1 : 3;
+  const passos = ['Registrado', 'Enviado', 'Avaliado'].map((t, i) => `<li class="${i < agora ? 'done' : i === agora ? 'now' : ''}"><span>${i < agora ? I('tick') : i + 1}</span>${t}</li>`).join('');
+  $('#app').innerHTML = shell(`<ol class="stepper">${passos}</ol>
+  <div class="cols"><div class="col-foto"><div class="card">
+    ${r.foto ? '<img class="foto" id="foto" alt="Foto da lesão">' : vazio('image', 'Nenhuma foto anexada')}
     ${isEx && rascunho ? `<label>${r.foto ? 'Trocar foto' : 'Foto da lesão'}</label><input type="file" id="file" accept="image/*" capture="environment">
-      <div class="err" id="e"></div>
-      <button class="send" id="enviar" style="width:100%;margin-top:8px" ${r.foto ? '' : 'disabled'}>Enviar para Estomaterapeuta</button>
-      <button class="danger small" id="excluir" style="margin-top:8px">Excluir rascunho</button>` : '<div class="err" id="e"></div>'}
-  </div>
+      <button class="send" id="enviar" style="width:100%;margin-top:10px" ${r.foto ? '' : 'disabled'}>Enviar para Estomaterapeuta</button>
+      <button class="danger small" id="excluir" style="margin-top:8px">Excluir rascunho</button>` : ''}
+    <div class="err" id="e"></div></div></div>
+  <div class="col-main"><div class="card"><div class="info-h">${avatar(r.paciente?.nome || '?')}<div><h2>${esc(r.paciente?.nome)}</h2>
+      <div class="chips"><span class="chip">Atend. ${esc(r.paciente?.prontuario)}</span><span class="chip">${esc(r.local) || 'local não informado'}</span></div></div>${badge(r.status)}</div>
+    <div class="muted">Registrado por ${esc(r.criadoPorNome)} em ${fmt(r.criadoEm)}${r.enviadoEm ? ' · Enviado em ' + fmt(r.enviadoEm) : ''}</div>
+    ${r.observacoes ? `<p style="margin:10px 0 0">${esc(r.observacoes)}</p>` : ''}</div>
   ${av ? `<div class="card"><h2>Devolutiva da estomaterapeuta</h2><div class="muted">${esc(av.avaliadoPorNome)} · ${fmt(av.avaliadoEm)}</div>
-     ${av.estagio ? `<h3>Classificação</h3><p>${ESTAGIO[av.estagio]}</p>` : ''}
+     ${av.estagio ? `<h3>Classificação</h3><p style="margin:0">${ESTAGIO[av.estagio]}</p>` : ''}
      <h3>Tratamento indicado</h3><div class="devolutiva">${esc(av.tratamento)}</div>
      <h3>Orientações</h3><div class="devolutiva">${esc(av.orientacoes)}</div>
      ${av.retornoDias != null ? `<p class="muted">Reavaliar em ${av.retornoDias} dia(s).</p>` : ''}
-     <button class="primary" id="pdf">📄 Baixar relatório (PDF)</button></div>`
-   : r.status === 'enviado' && isEx ? '<div class="card muted">Aguardando avaliação da estomaterapeuta.</div>' : ''}
+     <button class="primary" id="pdf">${I('file')} Baixar relatório (PDF)</button></div>`
+   : r.status === 'enviado' && isEx ? `<div class="card">${vazio('clock', 'Aguardando avaliação da estomaterapeuta', 'Você será avisado quando a devolutiva chegar.')}</div>` : ''}
   ${!isEx && r.status === 'enviado' ? `<form class="card" id="av"><h2>Sua avaliação</h2>
     ${blocoSugestao()}
     ${blocoIA()}
@@ -388,7 +427,7 @@ async function renderRegistro() {
     <label>Orientações *</label><textarea name="orientacoes" required data-voz placeholder="Reposicionamento, superfície de suporte, nutrição, sinais de alerta..."></textarea>
     <label>Reavaliar em (dias)</label><input name="retornoDias" type="number" min="0" max="365">
     <div class="err" id="e2"></div><button class="primary" style="width:100%">Enviar devolutiva</button></form>` : ''}
-  <div class="row nofill"><button id="back">← Voltar</button><button id="hist">Ver histórico do paciente</button></div>`);
+  <div class="acoes"><button id="back">← Voltar</button><button id="hist">Ver histórico do paciente</button></div></div></div>`);
   bindShell(); habilitarVoz();
   $('#back').onclick = () => go('home');
   $('#hist').onclick = () => go('paciente', { id: r.pacienteId });
@@ -418,6 +457,7 @@ async function renderRegistro() {
 
 async function render() {
   if (!token) return renderLogin();
+  const m = $('main'); if (m) m.innerHTML = SKELETON;
   try {
     if (!user) { user = await api('/me'); startPolling(); }
     const v = state.view;
