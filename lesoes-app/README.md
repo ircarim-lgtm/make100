@@ -35,6 +35,11 @@ Entre, crie os usuários reais em **Administração → Usuários** e troque a s
 
 Dados: banco `lesoes.db` e fotos ficam no volume `/data`. **Faça backup desse volume** (ex.: `docker run --rm -v lesoes-app_dados:/d -v $PWD:/b alpine tar czf /b/backup.tgz -C /d .`).
 
+## Proteção contra captura de tela e PDF
+- **PDF:** somente **estomaterapeuta** e **administrador** baixam (regra imposta no servidor; o examinador recebe 403 mesmo chamando a API direto). O PDF leva marca d'água "CONFIDENCIAL" com o nome de quem o gerou.
+- **Telas:** marca d'água com nome, login e hora em toda a tela; cobertura de privacidade ao sair da janela ou ao pressionar PrintScreen; impressão, salvar, copiar, menu de contexto e arrastar imagens bloqueados; fotos sem cache do navegador. Tentativas de captura, impressão e cópia aparecem na **Auditoria** (linhas em vermelho).
+- **Limite importante:** um site não consegue bloquear de fato o print do sistema (botão do celular, Win+Shift+S, foto da tela por outro aparelho). O que o app faz é dificultar e **identificar o autor** de qualquer vazamento. Para bloqueio real: política de dispositivo gerenciado do hospital (MDM/Intune; no Chrome, a política `DisableScreenshots`) ou um aplicativo nativo com `FLAG_SECURE` no Android.
+
 ## Segurança e LGPD
 Senhas com scrypt, sessão de 12 h, bloqueio após 5 tentativas de login, CSP estrita, HSTS em produção, validação do tipo real da imagem.
 O administrador não acessa dados clínicos. O app não substitui a avaliação do Encarregado de Dados (DPO) da instituição:

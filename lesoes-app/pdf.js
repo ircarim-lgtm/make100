@@ -106,6 +106,10 @@ function rodape(doc, geradoPor) {
   for (let i = start; i < start + count; i++) {
     doc.switchToPage(i);
     doc.page.margins.bottom = 0; // permite escrever na área do rodapé sem criar página nova
+    doc.save(); doc.rotate(-35, { origin: [W / 2, H / 2] });
+    doc.fillColor('#000').fillOpacity(0.06).font('Helvetica-Bold').fontSize(40)
+      .text(`CONFIDENCIAL · ${geradoPor}`, 0, H / 2 - 20, { width: W, align: 'center', lineBreak: false });
+    doc.restore(); doc.fillOpacity(1);
     const y = H - 48;
     doc.moveTo(M, y - 6).lineTo(W - M, y - 6).strokeColor('#d5dde0').lineWidth(0.5).stroke();
     doc.font('Helvetica').fontSize(7.5).fillColor(CINZA)

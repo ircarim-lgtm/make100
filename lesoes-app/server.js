@@ -199,6 +199,16 @@ async function handleApi(req, res, url) {
     return send(res, 200, { total: 0, tipo: '' });
   }
 
+  // ----- Segurança: o app avisa quando detecta tentativa de captura, impressão ou cópia -----
+  if (method === 'POST' && pathname === '/api/seguranca/evento') {
+    const b = await readJson(req);
+    if (!['tentativa_captura', 'tentativa_impressao', 'tentativa_copia'].includes(b.tipo)) return fail(res, 400, 'Evento inválido');
+    const desde = new Date(Date.now() - 3600000).toISOString();
+    const n = Number((await db.get("SELECT COUNT(*) n FROM auditoria WHERE user_id = ? AND acao LIKE 'seguranca_%' AND em > ?", user.id, desde)).n);
+    if (n < 100) await audit(user, 'seguranca_' + b.tipo, str(b.detalhe, 60) || null);
+    return send(res, 200, { ok: true });
+  }
+
   // ----- Administração -----
   if (pathname.startsWith('/api/usuarios') || pathname === '/api/auditoria') {
     if (deny('Apenas o administrador', isAdmin)) return;
@@ -259,7 +269,7 @@ async function handleApi(req, res, url) {
     return send(res, 201, pacOut(await db.get('SELECT p.*, 0 total FROM pacientes p WHERE id = ?', pid)));
   }
   if ((m = pathname.match(/^\/api\/pacientes\/(\w+)\/pdf$/)) && method === 'GET') {
-    if (deny('Sem acesso', clinico)) return;
+    if (deny('Apenas a estomaterapeuta e o administrador podem baixar PDF', isEstoma || isAdmin)) return;
     const p = await db.get('SELECT * FROM pacientes WHERE id = ?', m[1]);
     if (!p) return fail(res, 404, 'Paciente não encontrado');
     const registros = await db.all("SELECT * FROM registros WHERE paciente_id = ? AND status != 'rascunho' ORDER BY criado_em ASC", p.id);
@@ -290,7 +300,7 @@ async function handleApi(req, res, url) {
 
   // ----- Registros de lesão -----
   if (pathname.startsWith('/api/registros')) {
-    if (deny('Sem acesso', clinico)) return;
+    if (deny('Sem acesso', clinico || (isAdmin && /\/pdf$/.test(pathname)))) return;
     const visivel = (r) => r && !(isEstoma && r.status === 'rascunho');
     if (pathname === '/api/registros' && method === 'GET') {
       const status = url.searchParams.get('status');
@@ -347,9 +357,10 @@ async function handleApi(req, res, url) {
       if (sub === 'foto' && method === 'GET') {
         if (!r.foto_arquivo) return fail(res, 404, 'Foto não encontrada');
         await audit(user, 'foto_visualizada', r.id);
-        return send(res, 200, await storage.get(r.foto_arquivo), { 'Content-Type': r.foto_tipo, 'Cache-Control': 'private, max-age=300' });
+        return send(res, 200, await storage.get(r.foto_arquivo), { 'Content-Type': r.foto_tipo, 'Cache-Control': 'no-store' });
       }
       if (sub === 'pdf' && method === 'GET') {
+        if (deny('Apenas a estomaterapeuta e o administrador podem baixar PDF', isEstoma || isAdmin)) return;
         if (r.status !== 'avaliado') return fail(res, 409, 'O relatório fica disponível após a avaliação da estomaterapeuta');
         const paciente = await db.get('SELECT * FROM pacientes WHERE id = ?', r.paciente_id);
         const fotoBuf = r.foto_arquivo ? await storage.get(r.foto_arquivo) : null;

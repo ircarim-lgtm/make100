@@ -87,19 +87,35 @@ assert.equal((await call('/registros/' + reg.id, { token: ex })).data.novo, fals
 const pdfReg = await call(`/registros/${reg.id}/pdf`, { token: es });
 assert.equal(pdfReg.status, 200);
 assert.equal(pdfReg.data.subarray(0, 5).toString(), '%PDF-');
-assert.equal((await call(`/registros/${reg.id}/pdf`, { token: ex })).status, 200);
-const pdfHist = await call(`/pacientes/${pac.id}/pdf`, { token: ex });
+// PDFs: SOMENTE estomaterapeuta e administrador. O examinador nunca baixa PDF.
+const negado = await call(`/registros/${reg.id}/pdf`, { token: ex });
+assert.equal(negado.status, 403); assert.match(negado.data.erro, /estomaterapeuta e o administrador/);
+assert.equal((await call(`/pacientes/${pac.id}/pdf`, { token: ex })).status, 403);
+assert.equal((await call(`/registros/${reg.id}/pdf`)).status, 401);
+const pdfHist = await call(`/pacientes/${pac.id}/pdf`, { token: es });
 assert.equal(pdfHist.status, 200);
 assert.equal(pdfHist.data.subarray(0, 5).toString(), '%PDF-');
 if (process.env.SALVAR_PDF) { fs.writeFileSync(path.join(process.env.SALVAR_PDF, 'registro.pdf'), pdfReg.data); fs.writeFileSync(path.join(process.env.SALVAR_PDF, 'historico.pdf'), pdfHist.data); }
 const rPdf = (await call('/registros', { token: ex, method: 'POST', body: { pacienteId: pac.id, local: 'rascunho-pdf' } })).data;
 assert.equal((await call(`/registros/${rPdf.id}/pdf`, { token: es })).status, 404); // estomaterapeuta não vê rascunho
-assert.equal((await call(`/registros/${rPdf.id}/pdf`, { token: ex })).status, 409); // ainda não avaliado
+assert.equal((await call(`/registros/${rPdf.id}/pdf`, { token: ad })).status, 409); // ainda não avaliado
+assert.equal((await call(`/registros/${rPdf.id}/pdf`, { token: ex })).status, 403);
 await call('/registros/' + rPdf.id, { token: ex, method: 'DELETE' });
-assert.equal((await call(`/registros/${reg.id}/pdf`, { token: ad })).status, 403);
-assert.equal((await call(`/pacientes/${pac.id}/pdf`, { token: ad })).status, 403);
+const pdfAdmin = await call(`/registros/${reg.id}/pdf`, { token: ad });
+assert.equal(pdfAdmin.status, 200); assert.equal(pdfAdmin.data.subarray(0, 5).toString(), '%PDF-');
+assert.equal((await call(`/pacientes/${pac.id}/pdf`, { token: ad })).status, 200);
+// o administrador continua sem acesso às demais telas/dados clínicos
+assert.equal((await call(`/registros/${reg.id}`, { token: ad })).status, 403);
+assert.equal((await call(`/registros/${reg.id}/foto`, { token: ad })).status, 403);
 const pacVazio = (await call('/pacientes', { token: ex, method: 'POST', body: { ...PAC, nome: 'Sem Registros', prontuario: '777' } })).data;
-assert.equal((await call(`/pacientes/${pacVazio.id}/pdf`, { token: ex })).status, 404);
+assert.equal((await call(`/pacientes/${pacVazio.id}/pdf`, { token: es })).status, 404);
+// fotos nunca ficam em cache do navegador
+const fotoResp = await fetch(base + `/api/registros/${reg.id}/foto`, { headers: { Authorization: 'Bearer ' + ex } });
+assert.equal(fotoResp.headers.get('cache-control'), 'no-store');
+// tentativas de captura/impressão/cópia ficam registradas
+assert.equal((await call('/seguranca/evento', { method: 'POST', body: { tipo: 'tentativa_captura' } })).status, 401);
+assert.equal((await call('/seguranca/evento', { token: ex, method: 'POST', body: { tipo: 'qualquer' } })).status, 400);
+for (const t of ['tentativa_captura', 'tentativa_impressao', 'tentativa_copia']) assert.equal((await call('/seguranca/evento', { token: ex, method: 'POST', body: { tipo: t, detalhe: 'teste' } })).status, 200);
 
 // --- rascunho pode ser excluído (e a foto some)
 const r2 = (await call('/registros', { token: ex, method: 'POST', body: { pacienteId: pac.id, local: 'calcâneo' } })).data;
@@ -130,7 +146,7 @@ assert.equal((await login('examinador', 'novasenha1')).status, 200);
 
 // --- auditoria registra acessos
 const aud = (await call('/auditoria', { token: ad })).data.map((a) => a.acao);
-for (const a of ['login', 'login_falhou', 'paciente_criado', 'foto_visualizada', 'registro_enviado', 'avaliacao', 'usuario_criado', 'relatorio_pdf', 'historico_pdf']) assert.ok(aud.includes(a), a);
+for (const a of ['login', 'login_falhou', 'paciente_criado', 'foto_visualizada', 'registro_enviado', 'avaliacao', 'usuario_criado', 'relatorio_pdf', 'historico_pdf', 'seguranca_tentativa_captura', 'seguranca_tentativa_impressao', 'seguranca_tentativa_copia']) assert.ok(aud.includes(a), a);
 
 // --- exclusão de paciente (LGPD) remove registros e fotos
 assert.equal((await call('/pacientes/' + pac.id, { token: es, method: 'DELETE' })).status, 403);

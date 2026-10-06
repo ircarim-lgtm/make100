@@ -93,6 +93,43 @@ async function checarAvisos() {
 }
 function startPolling() { clearInterval(pollTimer); pollTimer = setInterval(checarAvisos, 30000); }
 
+// ---------- Proteção de tela ----------
+// Um site não consegue impedir capturas feitas pelo sistema do aparelho (print do celular, Win+Shift+S, foto da tela).
+// Aqui há dissuasão e rastreabilidade: marca d'água com o nome do usuário, cobertura ao sair da janela,
+// bloqueio de impressão/cópia e registro das tentativas na auditoria.
+let coverTimer;
+const evento = (tipo, detalhe) => { if (token) api('/seguranca/evento', { method: 'POST', body: { tipo, detalhe } }).catch(() => {}); };
+function atualizarMarca() {
+  let w = $('#wm'); if (!w) { w = document.createElement('div'); w.id = 'wm'; document.body.appendChild(w); }
+  if (!user || !token) { w.style.backgroundImage = 'none'; return; }
+  const dt = new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="440" height="270"><g transform="rotate(-25 220 135)" font-family="sans-serif" font-weight="600" fill="#7f8a99" fill-opacity="0.16" text-anchor="middle"><text x="220" y="125" font-size="17">${esc(user.nome)} · ${esc(user.login)}</text><text x="220" y="150" font-size="14">${dt} · CONFIDENCIAL</text></g></svg>`;
+  w.style.backgroundImage = `url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}")`;
+}
+function iniciarProtecao() {
+  const cover = document.createElement('div'); cover.className = 'cover';
+  cover.innerHTML = '<div><div style="font-size:42px">🔒</div><p>Conteúdo protegido</p><small>Toque ou volte para o aplicativo para continuar.</small></div>';
+  document.body.appendChild(cover);
+  const mostrar = () => { clearTimeout(coverTimer); cover.classList.remove('on'); };
+  const ocultar = () => { if (token) cover.classList.add('on'); };
+  const cobrirPor = (ms) => { ocultar(); clearTimeout(coverTimer); coverTimer = setTimeout(() => { if (!document.hidden) mostrar(); }, ms); };
+  window.addEventListener('blur', () => setTimeout(() => { if (!document.hasFocus()) ocultar(); }, 150));
+  window.addEventListener('focus', mostrar);
+  document.addEventListener('visibilitychange', () => (document.hidden ? ocultar() : mostrar()));
+  cover.addEventListener('click', mostrar); cover.addEventListener('touchend', mostrar);
+  document.addEventListener('keyup', (e) => { if (e.key === 'PrintScreen') { navigator.clipboard?.writeText('').catch(() => {}); cobrirPor(2500); evento('tentativa_captura', 'PrintScreen'); } });
+  document.addEventListener('keydown', (e) => {
+    const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
+    if (mod && (k === 'p' || k === 's')) { e.preventDefault(); evento('tentativa_impressao', k === 'p' ? 'imprimir' : 'salvar'); }
+    else if (e.metaKey && e.shiftKey && ['Digit3', 'Digit4', 'Digit5'].includes(e.code)) { cobrirPor(2500); evento('tentativa_captura', 'atalho do Mac'); }
+  });
+  document.addEventListener('copy', (e) => { if (!/INPUT|TEXTAREA/.test(document.activeElement?.tagName || '')) { e.preventDefault(); evento('tentativa_copia'); } });
+  document.addEventListener('contextmenu', (e) => e.preventDefault());
+  document.addEventListener('dragstart', (e) => e.preventDefault());
+  window.addEventListener('beforeprint', () => { cobrirPor(2500); evento('tentativa_impressao', 'menu'); });
+  setInterval(atualizarMarca, 30000);
+}
+
 const LOGO = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
 const P = {
   home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>', user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>',
@@ -216,11 +253,11 @@ async function homeAdmin() {
     const ps = await api('/pacientes?q=' + encodeURIComponent(state.q || ''));
     body = `<input id="q" placeholder="Buscar paciente" value="${esc(state.q || '')}"><div class="spacer"></div>
       <p class="muted">Excluir remove o paciente, os registros e as fotos de forma definitiva (direito de eliminação).</p>
-      ${ps.map((p) => `<div class="card top"><div><b>${esc(p.nome)}</b><div class="muted">Atend. ${esc(p.prontuario)}</div></div><button class="small danger" data-del="${p.id}" data-nome="${esc(p.nome)}">Excluir</button></div>`).join('') || '<p class="muted">Nenhum paciente.</p>'}`;
+      ${ps.map((p) => `<div class="card top"><div><b>${esc(p.nome)}</b><div class="muted">Atend. ${esc(p.prontuario)}</div></div><div class="row nofill"><button class="small" data-pdf="${p.id}" data-at="${esc(p.prontuario)}">PDF</button><button class="small danger" data-del="${p.id}" data-nome="${esc(p.nome)}">Excluir</button></div></div>`).join('') || '<p class="muted">Nenhum paciente.</p>'}`;
   } else {
     const log = await api('/auditoria');
     body = `<div class="card"><table><tr><th>Quando</th><th>Quem</th><th>Ação</th><th>Alvo</th></tr>${log.map((l) =>
-      `<tr><td>${fmt(l.em)}</td><td>${esc(l.user_nome || '—')}</td><td>${esc(l.acao)}</td><td>${esc(l.alvo || '')}</td></tr>`).join('')}</table></div>`;
+      `<tr class="${String(l.acao).startsWith('seguranca_') ? 'alerta' : ''}"><td>${fmt(l.em)}</td><td>${esc(l.user_nome || '—')}</td><td>${esc(l.acao)}</td><td>${esc(l.alvo || '')}</td></tr>`).join('')}</table></div>`;
   }
   $('#app').innerHTML = shell(`${hero('Administração', 'Usuários, privacidade e auditoria')}${tabs}${body}`);
   bindShell();
@@ -236,6 +273,7 @@ async function homeAdmin() {
     try { await api('/usuarios/' + b.dataset.reset, { method: 'PATCH', body: { senha } }); alert('Senha alterada. O usuário foi desconectado.'); } catch (e) { alert(e.message); }
   }));
   if ($('#q')) $('#q').onchange = (e) => { state.q = e.target.value; render(); };
+  $$('[data-pdf]').forEach((b) => (b.onclick = async () => { try { await baixarPdf(`/pacientes/${b.dataset.pdf}/pdf`, `historico-lesoes-${b.dataset.at}.pdf`); } catch (e) { alert(e.message); } }));
   $$('[data-del]').forEach((b) => (b.onclick = async () => {
     if (!confirm(`Excluir DEFINITIVAMENTE ${b.dataset.nome}, com todos os registros e fotos?`)) return;
     try { await api('/pacientes/' + b.dataset.del, { method: 'DELETE' }); render(); } catch (e) { alert(e.message); }
@@ -310,7 +348,7 @@ async function renderPaciente() {
     ${p.comorbidades ? `<p style="margin:14px 0 4px">${esc(p.comorbidades)}</p>` : ''}
     <div class="muted" style="margin-top:10px">Consentimento: ${esc(p.consentimentoPor)} em ${fmt(p.consentimentoEm)}</div>
     <div class="acoes">${user.perfil === 'examinador' ? `<button class="primary" id="nova">${I('plus')} Nova lesão / foto</button>` : ''}
-    ${p.registros.some((r) => r.status !== 'rascunho') ? `<button id="pdfhist">${I('file')} Baixar histórico completo (PDF)</button>` : ''}</div><div class="err" id="e"></div></div>
+    ${user.perfil !== 'examinador' && p.registros.some((r) => r.status !== 'rascunho') ? `<button id="pdfhist">${I('file')} Baixar histórico completo (PDF)</button>` : ''}</div><div class="err" id="e"></div></div>
     <div class="card"><div class="sec-h" style="margin-top:0"><h2>Evolução</h2></div>${comparar(p.registros)}</div>
     <div class="sec-h"><h2>Histórico de lesões</h2></div>
     ${p.registros.length ? `<div class="timeline">${p.registros.map((r) => `<div class="tl-item"><span class="tl-dot ${r.status}"></span>${cardRegistro(r)}</div>`).join('')}</div>` : vazio('camera', 'Nenhum registro ainda', 'Use “Nova lesão / foto” para começar o acompanhamento.')}
@@ -355,7 +393,7 @@ async function renderRegistro() {
      <h3>Tratamento indicado</h3><div class="devolutiva">${esc(av.tratamento)}</div>
      <h3>Orientações</h3><div class="devolutiva">${esc(av.orientacoes)}</div>
      ${av.retornoDias != null ? `<p class="muted">Reavaliar em ${av.retornoDias} dia(s).</p>` : ''}
-     <button class="primary" id="pdf">${I('file')} Baixar relatório (PDF)</button></div>`
+     ${user.perfil !== 'examinador' ? `<button class="primary" id="pdf">${I('file')} Baixar relatório (PDF)</button>` : ''}</div>`
    : r.status === 'enviado' && isEx ? `<div class="card">${vazio('clock', 'Aguardando avaliação da estomaterapeuta', 'Você será avisado quando a devolutiva chegar.')}</div>` : ''}
   ${!isEx && r.status === 'enviado' ? `<form class="card" id="av"><h2>Sua avaliação</h2>
     <label>Classificação da lesão</label><select name="estagio"><option value="">—</option>${Object.entries(ESTAGIO).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
@@ -390,6 +428,7 @@ async function renderRegistro() {
 }
 
 async function render() {
+  atualizarMarca();
   if (!token) return renderLogin();
   const m = $('main'); if (m) m.innerHTML = SKELETON;
   try {
@@ -404,5 +443,6 @@ async function render() {
     if (v === 'registro') return await renderRegistro();
   } catch (e) { if (token) { $('#app').innerHTML = shell(`<p class="err">${esc(e.message)}</p>`); bindShell(); } }
 }
+iniciarProtecao();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
 render();
