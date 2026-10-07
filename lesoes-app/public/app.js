@@ -27,24 +27,50 @@ function go(view, extra = {}) { state = { ...state, view, ...extra }; render(); 
 
 // Câmera dentro do app: usa a câmera ao vivo do navegador (getUserMedia). A foto nunca passa pelo
 // aplicativo de câmera do sistema, então não é gravada na galeria do aparelho; só existe na memória até o envio.
+const emAppEmbutido = () => /FBAN|FBAV|Instagram|Line\/|MicroMessenger|WhatsApp|Snapchat|Telegram|; wv\)|Claude/i.test(navigator.userAgent) || (/iPhone|iPad|iPod/.test(navigator.userAgent) && !/Safari\//.test(navigator.userAgent));
+function motivoCamera(e) {
+  const usar = 'Abra este endereço direto no Safari (iPhone) ou no Chrome (Android), fora de outros aplicativos.';
+  if (!window.isSecureContext) return { texto: 'A câmera só funciona em conexão segura (https).', copiar: true };
+  if (!navigator.mediaDevices?.getUserMedia) return { texto: `${emAppEmbutido() ? 'Este navegador embutido em outro aplicativo não permite usar a câmera.' : 'Este navegador não permite usar a câmera.'} ${usar}`, copiar: true };
+  switch (e?.name) {
+    case 'NotAllowedError': case 'SecurityError':
+      return emAppEmbutido() ? { texto: `Este navegador embutido em outro aplicativo bloqueou a câmera. ${usar}`, copiar: true }
+        : { texto: 'A câmera está bloqueada para este site. Libere em: cadeado ao lado do endereço (Chrome), ou Ajustes › Safari › Câmera (iPhone). Depois toque em “Tentar de novo”.' };
+    case 'NotFoundError': case 'OverconstrainedError': return { texto: 'Nenhuma câmera foi encontrada neste aparelho.' };
+    case 'NotReadableError': case 'AbortError': return { texto: 'Não foi possível acessar a câmera. Feche outros aplicativos que a estejam usando e tente de novo.' };
+    default: return { texto: 'Não foi possível abrir a câmera.' };
+  }
+}
+async function obterCamera() { // tenta do melhor para o mais simples; para ao ser negada
+  const tentativas = [{ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1440 } }, audio: false }, { video: { facingMode: 'environment' }, audio: false }, { video: true, audio: false }];
+  let ultimo;
+  for (const t of tentativas) { try { return await navigator.mediaDevices.getUserMedia(t); } catch (e) { ultimo = e; if (e.name === 'NotAllowedError' || e.name === 'SecurityError') break; } }
+  throw ultimo;
+}
 function abrirCamera() {
   return new Promise((resolve) => {
     const m = document.createElement('div'); m.className = 'cam';
-    m.innerHTML = `<div class="cam-dica">🔒 Esta foto não é salva na galeria do aparelho</div><video playsinline muted autoplay></video><canvas hidden></canvas><div class="cam-msg"></div>
+    m.innerHTML = `<div class="cam-dica">🔒 Esta foto não é salva na galeria do aparelho</div><video playsinline muted autoplay></video><canvas hidden></canvas>
+      <div class="cam-msg" hidden><p></p><small></small><div class="cam-acoes"><button type="button" class="cam-retry">Tentar de novo</button><button type="button" class="cam-copy" hidden>Copiar endereço</button></div></div>
       <div class="cam-bar"><button type="button" class="cam-x">Cancelar</button><button type="button" class="cam-shot" aria-label="Capturar foto"></button><span></span></div>
       <div class="cam-bar" hidden><button type="button" class="cam-redo">Refazer</button><span></span><button type="button" class="cam-ok primary">Usar foto</button></div>`;
     document.body.appendChild(m);
     const v = $('video', m), c = $('canvas', m), msg = $('.cam-msg', m), [barra1, barra2] = $$('.cam-bar', m);
     let stream;
     const fechar = (blob) => { stream?.getTracks().forEach((t) => t.stop()); m.remove(); resolve(blob || null); };
-    $('.cam-x', m).onclick = () => fechar(null);
-    (async () => {
+    const iniciar = async () => {
+      msg.hidden = true;
       try {
-        if (!navigator.mediaDevices?.getUserMedia) throw Object.assign(new Error('sem câmera'), { name: 'NotSupportedError' });
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1440 } }, audio: false });
-        v.srcObject = stream; await v.play();
-      } catch (e) { msg.textContent = e.name === 'NotAllowedError' ? 'Permita o uso da câmera no navegador para tirar a foto.' : 'Câmera indisponível neste aparelho ou navegador.'; }
-    })();
+        stream = await obterCamera(); v.srcObject = stream;
+        try { await v.play(); } catch { /* a reprodução automática pode ser adiada pelo navegador; o quadro aparece em seguida */ }
+      } catch (e) {
+        const r = motivoCamera(e); $('p', msg).textContent = r.texto; $('small', msg).textContent = e?.name ? `Detalhe técnico: ${e.name}` : '';
+        $('.cam-copy', msg).hidden = !r.copiar; msg.hidden = false;
+      }
+    };
+    $('.cam-x', m).onclick = () => fechar(null);
+    $('.cam-retry', m).onclick = iniciar;
+    $('.cam-copy', m).onclick = async (ev) => { try { await navigator.clipboard.writeText(location.origin); ev.target.textContent = 'Endereço copiado'; } catch { ev.target.textContent = location.origin; } };
     $('.cam-shot', m).onclick = () => {
       if (!v.videoWidth) return;
       const k = Math.min(1, 1600 / Math.max(v.videoWidth, v.videoHeight)); // reduz o tamanho para o envio
@@ -54,6 +80,7 @@ function abrirCamera() {
     };
     $('.cam-redo', m).onclick = () => { c.hidden = true; v.hidden = false; barra2.hidden = true; barra1.hidden = false; };
     $('.cam-ok', m).onclick = () => c.toBlob((b) => fechar(b), 'image/jpeg', 0.85);
+    iniciar();
   });
 }
 async function carregarFoto(imgEl, regId) {
@@ -132,8 +159,8 @@ function iniciarProtecao() {
   cover.innerHTML = '<div><div style="font-size:42px">🔒</div><p>Conteúdo protegido</p><small>Toque ou volte para o aplicativo para continuar.</small></div>';
   document.body.appendChild(cover);
   const mostrar = () => { clearTimeout(coverTimer); cover.classList.remove('on'); };
-  const ocultar = () => { if (token) cover.classList.add('on'); };
-  const cobrirPor = (ms) => { ocultar(); clearTimeout(coverTimer); coverTimer = setTimeout(() => { if (!document.hidden) mostrar(); }, ms); };
+  const ocultar = (forcar) => { if (token && (forcar || !$('.cam'))) cover.classList.add('on'); }; // sem câmera aberta: o aviso de permissão tira o foco da janela
+  const cobrirPor = (ms) => { ocultar(true); clearTimeout(coverTimer); coverTimer = setTimeout(() => { if (!document.hidden) mostrar(); }, ms); };
   window.addEventListener('blur', () => setTimeout(() => { if (!document.hasFocus()) ocultar(); }, 150));
   window.addEventListener('focus', mostrar);
   document.addEventListener('visibilitychange', () => (document.hidden ? ocultar() : mostrar()));

@@ -30,6 +30,7 @@ const ex = await tok('examinador', 'exam1234'), es = await tok('estomaterapeuta'
 assert.equal((await call('/pacientes')).status, 401);
 const home = await fetch(base + '/');
 assert.match(home.headers.get('content-security-policy'), /script-src 'self'/);
+assert.match(home.headers.get('permissions-policy'), /camera=\(self\)/); // a câmera é permitida só para o próprio site
 assert.equal((await fetch(base + '/manifest.webmanifest')).status, 200);
 assert.equal((await fetch(base + '/..%2fserver.js')).status, 404);
 

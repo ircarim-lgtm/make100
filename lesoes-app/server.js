@@ -68,7 +68,7 @@ await seed();
 
 // ---------- HTTP ----------
 const SEC = {
-  'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer',
+  'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer', 'Permissions-Policy': 'camera=(self), microphone=(self), geolocation=()',
   'Content-Security-Policy': "default-src 'self'; img-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'",
   ...(PROD ? { 'Strict-Transport-Security': 'max-age=31536000' } : {}),
 };

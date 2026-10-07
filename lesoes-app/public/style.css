@@ -238,7 +238,7 @@ tr.alerta td { color:var(--err); font-weight:650; }
 .cam video,.cam canvas { flex:1; min-height:0; width:100%; object-fit:contain; background:#000; }
 .cam video[hidden],.cam canvas[hidden],.cam-bar[hidden] { display:none; }
 .cam-dica { padding:10px 14px; text-align:center; font-size:13px; color:#cfe0f5; background:rgba(255,255,255,.08); }
-.cam-msg { position:absolute; left:0; right:0; top:42%; padding:0 28px; text-align:center; font-size:16px; }
+.cam-msg { position:absolute; left:0; right:0; top:30%; padding:0 24px; text-align:center; font-size:16px; z-index:1; } .cam-msg[hidden] { display:none; } .cam-msg p { margin:0 0 8px; line-height:1.4; } .cam-msg small { display:block; color:#9fb3cf; font-size:12px; } .cam-acoes { display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-top:16px; } .cam-acoes button { color:#fff; background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.3); } .cam-acoes button[hidden] { display:none; }
 .cam-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 20px calc(16px + env(safe-area-inset-bottom)); background:#000; }
 .cam-bar > * { flex:1; } .cam-bar > span { visibility:hidden; }
 .cam-bar button { color:#fff; background:rgba(255,255,255,.12); border-color:rgba(255,255,255,.25); }

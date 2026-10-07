@@ -37,6 +37,11 @@ Entre, crie os usuários reais em **Administração → Usuários** e troque a s
 
 Dados: banco `lesoes.db` e fotos ficam no volume `/data`. **Faça backup desse volume** (ex.: `docker run --rm -v lesoes-app_dados:/d -v $PWD:/b alpine tar czf /b/backup.tgz -C /d .`).
 
+## Se a câmera não abrir
+- **Abra o endereço direto no Safari (iPhone) ou no Chrome (Android).** Links abertos dentro de outros apps (WhatsApp, Instagram, Gmail, etc.) usam um navegador embutido que **não permite câmera** nem mostra o pedido de permissão. A tela da câmera avisa isso e tem o botão "Copiar endereço".
+- Se a permissão foi negada antes: Chrome → cadeado ao lado do endereço → Permissões → Câmera; iPhone → Ajustes › Safari › Câmera (ou Ajustes › Privacidade › Câmera).
+- A tela da câmera mostra o "Detalhe técnico" do erro, útil para suporte.
+
 ## Proteção contra captura de tela e PDF
 - **PDF:** somente **estomaterapeuta** e **administrador** baixam (regra imposta no servidor; o examinador recebe 403 mesmo chamando a API direto). O PDF leva marca d'água "CONFIDENCIAL" com o nome de quem o gerou.
 - **Telas:** marca d'água com nome, login e hora em toda a tela; cobertura de privacidade ao sair da janela ou ao pressionar PrintScreen; impressão, salvar, copiar, menu de contexto e arrastar imagens bloqueados; fotos sem cache do navegador. Tentativas de captura, impressão e cópia aparecem na **Auditoria** (linhas em vermelho).
