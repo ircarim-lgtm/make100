@@ -32,6 +32,9 @@ const home = await fetch(base + '/');
 assert.match(home.headers.get('content-security-policy'), /script-src 'self'/);
 assert.match(home.headers.get('permissions-policy'), /camera=\(self\)/); // a câmera é permitida só para o próprio site
 assert.equal((await fetch(base + '/manifest.webmanifest')).status, 200);
+assert.match(home.headers.get('content-security-policy'), /media-src 'self' blob: mediastream:/);
+const diag = await fetch(base + '/camera-teste.html'); assert.equal(diag.status, 200); // página de diagnóstico da câmera, sem login
+assert.equal((await fetch(base + '/camera-teste.js')).status, 200);
 assert.equal((await fetch(base + '/..%2fserver.js')).status, 404);
 
 // --- consentimento e cadastro

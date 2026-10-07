@@ -51,7 +51,7 @@ function abrirCamera() {
   return new Promise((resolve) => {
     const m = document.createElement('div'); m.className = 'cam';
     m.innerHTML = `<div class="cam-dica">🔒 Esta foto não é salva na galeria do aparelho</div><video playsinline muted autoplay></video><canvas hidden></canvas>
-      <div class="cam-msg" hidden><p></p><small></small><div class="cam-acoes"><button type="button" class="cam-retry">Tentar de novo</button><button type="button" class="cam-copy" hidden>Copiar endereço</button></div></div>
+      <div class="cam-msg" hidden><p></p><small></small><div class="cam-acoes"><button type="button" class="cam-retry">Tentar de novo</button><button type="button" class="cam-copy" hidden>Copiar endereço</button></div><a class="cam-diag" href="/camera-teste.html" target="_blank" rel="noopener">Testar a câmera do navegador</a></div>
       <div class="cam-bar"><button type="button" class="cam-x">Cancelar</button><button type="button" class="cam-shot" aria-label="Capturar foto"></button><span></span></div>
       <div class="cam-bar" hidden><button type="button" class="cam-redo">Refazer</button><span></span><button type="button" class="cam-ok primary">Usar foto</button></div>`;
     document.body.appendChild(m);
@@ -161,8 +161,9 @@ function iniciarProtecao() {
   const mostrar = () => { clearTimeout(coverTimer); cover.classList.remove('on'); };
   const ocultar = (forcar) => { if (token && (forcar || !$('.cam'))) cover.classList.add('on'); }; // sem câmera aberta: o aviso de permissão tira o foco da janela
   const cobrirPor = (ms) => { ocultar(true); clearTimeout(coverTimer); coverTimer = setTimeout(() => { if (!document.hidden) mostrar(); }, ms); };
-  window.addEventListener('blur', () => setTimeout(() => { if (!document.hasFocus()) ocultar(); }, 150));
-  window.addEventListener('focus', mostrar);
+  const celular = matchMedia('(pointer: coarse)').matches; // no celular, perda de foco não é confiável (pedidos de permissão, teclado) e não impede captura
+  if (!celular) window.addEventListener('blur', () => setTimeout(() => { if (!document.hasFocus()) ocultar(); }, 150));
+  window.addEventListener('focus', mostrar); window.addEventListener('pageshow', mostrar);
   document.addEventListener('visibilitychange', () => (document.hidden ? ocultar() : mostrar()));
   cover.addEventListener('click', mostrar); cover.addEventListener('touchend', mostrar);
   document.addEventListener('keyup', (e) => { if (e.key === 'PrintScreen') { navigator.clipboard?.writeText('').catch(() => {}); cobrirPor(2500); evento('tentativa_captura', 'PrintScreen'); } });
