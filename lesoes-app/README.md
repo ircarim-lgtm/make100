@@ -10,6 +10,8 @@ a **Estomaterapeuta** avalia (classificação, tratamento, orientações, prazo 
 - Comparação de fotos antes/depois por paciente.
 - **Relatórios em PDF** com foto: um por avaliação (botão na devolutiva) e o histórico completo do paciente, com todas as lesões em ordem cronológica.
 - **Ditado por voz** (🎤 Ditar) nos campos de texto do examinador e da estomaterapeuta, em português. Usa o reconhecimento de fala do próprio navegador (Chrome/Edge/Android e Safari/iOS), sem custo; o áudio é processado pelo serviço de voz do navegador (Google/Apple), não pelo app. Peça ao DPO para avaliar esse ponto.
+- **Foto tirada dentro do app** (câmera ao vivo do navegador, sem passar pelo app de câmera do sistema), por isso **não é gravada na galeria** do aparelho; não há opção de escolher foto da galeria.
+- A **estomaterapeuta também atua como examinador**: alterna entre os modos na tela inicial, cadastra pacientes, fotografa e envia, e só vê os rascunhos que ela mesma criou.
 - Trilha de auditoria (logins, acessos a paciente e a fotos, envios, avaliações).
 - App instalável no celular (PWA); a foto é reduzida no aparelho antes do envio.
 - Banco: SQLite embutido (`node:sqlite`) para uso local, ou Postgres quando há `DATABASE_URL`. Fotos: disco local ou Vercel Blob privado. Dependências: `pg`, `@vercel/blob`, `pdfkit`. Requer **Node 22.13+**.

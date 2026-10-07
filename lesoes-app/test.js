@@ -34,7 +34,7 @@ assert.equal((await fetch(base + '/manifest.webmanifest')).status, 200);
 assert.equal((await fetch(base + '/..%2fserver.js')).status, 404);
 
 // --- consentimento e cadastro
-assert.equal((await call('/pacientes', { token: es, method: 'POST', body: PAC })).status, 403);
+assert.equal((await call('/pacientes', { token: ad, method: 'POST', body: PAC })).status, 403); // administrador não cadastra
 assert.equal((await call('/pacientes', { token: ex, method: 'POST', body: { nome: 'Maria' } })).status, 400);
 assert.equal((await call('/pacientes', { token: ex, method: 'POST', body: { ...PAC, consentimento: false } })).status, 400);
 const { setor: _s, ...semSetor } = PAC;
@@ -122,6 +122,33 @@ const r2 = (await call('/registros', { token: ex, method: 'POST', body: { pacien
 await call(`/registros/${r2.id}/foto`, { token: ex, method: 'PUT', body: jpg, type: 'image/jpeg' });
 assert.equal((await call('/registros/' + r2.id, { token: ex, method: 'DELETE' })).status, 200);
 assert.equal(fs.readdirSync(path.join(dir, 'photos')).length, 1);
+
+// --- a estomaterapeuta também atua como examinador (cadastra, fotografa, envia) e só vê rascunhos próprios
+const pacE = (await call('/pacientes', { token: es, method: 'POST', body: { ...PAC, nome: 'Paciente da Estoma', prontuario: 'E-1' } })).data;
+assert.ok(pacE.id);
+const rE = (await call('/registros', { token: es, method: 'POST', body: { pacienteId: pacE.id, local: 'calcâneo' } })).data;
+assert.equal(rE.status, 'rascunho');
+assert.equal((await call('/registros/' + rE.id, { token: es })).status, 200);
+assert.ok((await call('/registros', { token: es })).data.some((r) => r.id === rE.id));
+assert.equal((await call('/pacientes/' + pacE.id, { token: es })).data.registros.length, 1);
+assert.equal((await call('/pacientes', { token: es })).data.find((p) => p.id === pacE.id).totalRegistros, 1);
+// rascunho dela não é visível para outra estomaterapeuta, e o rascunho do examinador não é visível para ela
+const e2 = (await call('/usuarios', { token: ad, method: 'POST', body: { nome: 'Outra Estoma', login: 'estoma2', perfil: 'estomaterapeuta', senha: 'senhaboa123' } })).data;
+const tok2 = await tok('estoma2', 'senhaboa123');
+assert.equal((await call('/registros/' + rE.id, { token: tok2 })).status, 404);
+assert.equal((await call('/registros', { token: tok2 })).data.some((r) => r.id === rE.id), false);
+assert.equal((await call('/pacientes/' + pacE.id, { token: tok2 })).data.registros.length, 0);
+assert.equal((await call(`/registros/${rE.id}/foto`, { token: tok2, method: 'PUT', body: jpg, type: 'image/jpeg' })).status, 404);
+// ela fotografa, envia e avalia o próprio caso
+assert.equal((await call(`/registros/${rE.id}/foto`, { token: es, method: 'PUT', body: jpg, type: 'image/jpeg' })).status, 200);
+assert.equal((await call(`/registros/${rE.id}/enviar`, { token: es, method: 'POST' })).data.status, 'enviado');
+assert.equal((await call(`/registros/${rE.id}/avaliacao`, { token: es, method: 'POST', body: { tratamento: 't', orientacoes: 'o' } })).data.status, 'avaliado');
+// examinador continua sem poder avaliar e sem PDF; administrador continua sem cadastrar
+assert.equal((await call(`/registros/${rE.id}/avaliacao`, { token: ex, method: 'POST', body: { tratamento: 't', orientacoes: 'o' } })).status, 403);
+assert.equal((await call(`/registros/${rE.id}/pdf`, { token: ex })).status, 403);
+assert.equal((await call(`/registros/${rE.id}/pdf`, { token: es })).status, 200);
+assert.equal((await call('/pacientes/' + pacE.id, { token: ad, method: 'DELETE' })).status, 200);
+assert.equal((await call('/usuarios/' + e2.id, { token: ad, method: 'PATCH', body: { ativo: false } })).status, 200);
 
 // --- administrador: sem acesso clínico, gerencia usuários
 assert.equal((await call('/registros', { token: ad })).status, 403);

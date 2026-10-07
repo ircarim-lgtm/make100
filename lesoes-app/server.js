@@ -174,6 +174,8 @@ async function handleApi(req, res, url) {
   const perfil = user.perfil;
   const isAdmin = perfil === 'admin', isExam = perfil === 'examinador', isEstoma = perfil === 'estomaterapeuta';
   const clinico = isExam || isEstoma;
+  const podeRegistrar = isExam || isEstoma; // a estomaterapeuta também atua como examinador
+  const meusRascunhos = "(r.status != 'rascunho' OR r.criado_por = ?)"; // ela só vê rascunhos próprios
   const deny = (msg, ok) => (ok ? false : (fail(res, 403, msg), true));
 
   if (method === 'GET' && pathname === '/api/me') return send(res, 200, userOut(user));
@@ -247,13 +249,13 @@ async function handleApi(req, res, url) {
   if (pathname === '/api/pacientes' && method === 'GET') {
     const q = `%${(url.searchParams.get('q') || '').toLowerCase()}%`;
     if (isAdmin) return send(res, 200, await db.all('SELECT id, nome, prontuario FROM pacientes WHERE lower(nome) LIKE ? OR lower(prontuario) LIKE ? ORDER BY nome LIMIT 200', q, q));
-    const filtro = isEstoma ? "AND r.status != 'rascunho'" : '';
+    const filtro = isEstoma ? `AND ${meusRascunhos}` : '';
     const rows = await db.all(`SELECT p.*, CAST((SELECT COUNT(*) FROM registros r WHERE r.paciente_id = p.id ${filtro}) AS INTEGER) total
-      FROM pacientes p WHERE lower(p.nome) LIKE ? OR lower(p.prontuario) LIKE ? OR lower(p.setor) LIKE ? ORDER BY p.nome LIMIT 200`, q, q, q);
+      FROM pacientes p WHERE lower(p.nome) LIKE ? OR lower(p.prontuario) LIKE ? OR lower(p.setor) LIKE ? ORDER BY p.nome LIMIT 200`, ...(isEstoma ? [user.id] : []), q, q, q);
     return send(res, 200, rows.map(pacOut));
   }
   if (pathname === '/api/pacientes' && method === 'POST') {
-    if (deny('Apenas o examinador cadastra pacientes', isExam)) return;
+    if (deny('Apenas examinador ou estomaterapeuta cadastram pacientes', podeRegistrar)) return;
     const b = await readJson(req);
     const nome = str(b.nome, 120), prontuario = str(b.prontuario, 40), setor = str(b.setor, 60), consPor = str(b.consentimentoPor, 120);
     if (!nome || !prontuario) return fail(res, 400, 'Nome e atendimento são obrigatórios');
@@ -284,8 +286,8 @@ async function handleApi(req, res, url) {
     if (!p) return fail(res, 404, 'Paciente não encontrado');
     if (method === 'GET') {
       if (deny('Sem acesso', clinico)) return;
-      const filtro = isEstoma ? "AND r.status != 'rascunho'" : '';
-      const regs = (await db.all(`${REG_SQL} WHERE r.paciente_id = ? ${filtro} ORDER BY r.criado_em DESC`, p.id)).map((r) => regOut(r, user));
+      const filtro = isEstoma ? `AND ${meusRascunhos}` : '';
+      const regs = (await db.all(`${REG_SQL} WHERE r.paciente_id = ? ${filtro} ORDER BY r.criado_em DESC`, p.id, ...(isEstoma ? [user.id] : []))).map((r) => regOut(r, user));
       await audit(user, 'paciente_visualizado', p.prontuario);
       return send(res, 200, { ...pacOut(p), registros: regs });
     }
@@ -301,17 +303,17 @@ async function handleApi(req, res, url) {
   // ----- Registros de lesão -----
   if (pathname.startsWith('/api/registros')) {
     if (deny('Sem acesso', clinico || (isAdmin && /\/pdf$/.test(pathname)))) return;
-    const visivel = (r) => r && !(isEstoma && r.status === 'rascunho');
+    const visivel = (r) => r && !(isEstoma && r.status === 'rascunho' && r.criado_por !== user.id);
     if (pathname === '/api/registros' && method === 'GET') {
       const status = url.searchParams.get('status');
       const where = [], params = [];
       if (STATUS.includes(status)) { where.push('r.status = ?'); params.push(status); }
-      if (isEstoma) where.push("r.status != 'rascunho'");
+      if (isEstoma) { where.push(meusRascunhos); params.push(user.id); }
       const rows = await db.all(`${REG_SQL} ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY COALESCE(r.enviado_em, r.criado_em) DESC LIMIT 300`, ...params);
       return send(res, 200, rows.map((r) => regOut(r, user)));
     }
     if (pathname === '/api/registros' && method === 'POST') {
-      if (deny('Apenas o examinador cria registros', isExam)) return;
+      if (deny('Apenas examinador ou estomaterapeuta criam registros', podeRegistrar)) return;
       const b = await readJson(req);
       if (!await db.get('SELECT 1 x FROM pacientes WHERE id = ?', b.pacienteId)) return fail(res, 400, 'Paciente inválido');
       const rid = id();
@@ -333,7 +335,7 @@ async function handleApi(req, res, url) {
         return send(res, 200, regOut(r, user)); // 'novo' reflete o estado antes de marcar como visto
       }
       if (!sub && method === 'DELETE') {
-        if (deny('Apenas o examinador exclui rascunhos', isExam)) return;
+        if (deny('Apenas examinador ou estomaterapeuta excluem rascunhos', podeRegistrar)) return;
         if (r.status !== 'rascunho') return fail(res, 409, 'Só é possível excluir rascunhos');
         if (r.foto_arquivo) await storage.del(r.foto_arquivo);
         await db.run('DELETE FROM registros WHERE id = ?', r.id);
@@ -341,7 +343,7 @@ async function handleApi(req, res, url) {
         return send(res, 200, { ok: true });
       }
       if (sub === 'foto' && method === 'PUT') {
-        if (deny('Apenas o examinador envia fotos', isExam)) return;
+        if (deny('Apenas examinador ou estomaterapeuta enviam fotos', podeRegistrar)) return;
         if (r.status !== 'rascunho') return fail(res, 409, 'Registro já enviado; não é possível trocar a foto');
         const type = (req.headers['content-type'] || '').split(';')[0];
         const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[type];
@@ -369,7 +371,7 @@ async function handleApi(req, res, url) {
         return sendPdf(res, relatorioRegistro({ paciente, registro: r, fotoBuf, geradoPor: user.nome }), `relatorio-lesao-${paciente.prontuario}-${dia}.pdf`);
       }
       if (sub === 'enviar' && method === 'POST') {
-        if (deny('Apenas o examinador envia para a estomaterapeuta', isExam)) return;
+        if (deny('Apenas examinador ou estomaterapeuta enviam para avaliação', podeRegistrar)) return;
         if (r.status !== 'rascunho') return fail(res, 409, 'Registro já foi enviado');
         if (!r.foto_arquivo) return fail(res, 400, 'Anexe a foto da lesão antes de enviar');
         await db.run("UPDATE registros SET status='enviado', enviado_em=? WHERE id=?", now(), r.id);

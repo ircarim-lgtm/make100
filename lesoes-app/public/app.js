@@ -25,19 +25,35 @@ async function api(path, opts = {}) {
 function logout() { token = null; user = null; clearInterval(pollTimer); sessionStorage.removeItem('token'); render(); }
 function go(view, extra = {}) { state = { ...state, view, ...extra }; render(); window.scrollTo(0, 0); }
 
-// Reduz a foto no aparelho (celulares geram fotos de vários MB)
-function reduzirImagem(file, max = 1600) {
-  return new Promise((resolve, reject) => {
-    const img = new Image(), url = URL.createObjectURL(file);
-    img.onload = () => {
-      const k = Math.min(1, max / Math.max(img.width, img.height));
-      const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
-      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-      URL.revokeObjectURL(url);
-      c.toBlob((b) => (b ? resolve(b) : reject(new Error('Falha ao processar imagem'))), 'image/jpeg', 0.85);
+// Câmera dentro do app: usa a câmera ao vivo do navegador (getUserMedia). A foto nunca passa pelo
+// aplicativo de câmera do sistema, então não é gravada na galeria do aparelho; só existe na memória até o envio.
+function abrirCamera() {
+  return new Promise((resolve) => {
+    const m = document.createElement('div'); m.className = 'cam';
+    m.innerHTML = `<div class="cam-dica">🔒 Esta foto não é salva na galeria do aparelho</div><video playsinline muted autoplay></video><canvas hidden></canvas><div class="cam-msg"></div>
+      <div class="cam-bar"><button type="button" class="cam-x">Cancelar</button><button type="button" class="cam-shot" aria-label="Capturar foto"></button><span></span></div>
+      <div class="cam-bar" hidden><button type="button" class="cam-redo">Refazer</button><span></span><button type="button" class="cam-ok primary">Usar foto</button></div>`;
+    document.body.appendChild(m);
+    const v = $('video', m), c = $('canvas', m), msg = $('.cam-msg', m), [barra1, barra2] = $$('.cam-bar', m);
+    let stream;
+    const fechar = (blob) => { stream?.getTracks().forEach((t) => t.stop()); m.remove(); resolve(blob || null); };
+    $('.cam-x', m).onclick = () => fechar(null);
+    (async () => {
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) throw Object.assign(new Error('sem câmera'), { name: 'NotSupportedError' });
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1440 } }, audio: false });
+        v.srcObject = stream; await v.play();
+      } catch (e) { msg.textContent = e.name === 'NotAllowedError' ? 'Permita o uso da câmera no navegador para tirar a foto.' : 'Câmera indisponível neste aparelho ou navegador.'; }
+    })();
+    $('.cam-shot', m).onclick = () => {
+      if (!v.videoWidth) return;
+      const k = Math.min(1, 1600 / Math.max(v.videoWidth, v.videoHeight)); // reduz o tamanho para o envio
+      c.width = Math.round(v.videoWidth * k); c.height = Math.round(v.videoHeight * k);
+      c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+      v.hidden = true; c.hidden = false; barra1.hidden = true; barra2.hidden = false;
     };
-    img.onerror = () => reject(new Error('Imagem inválida'));
-    img.src = url;
+    $('.cam-redo', m).onclick = () => { c.hidden = true; v.hidden = false; barra2.hidden = true; barra1.hidden = false; };
+    $('.cam-ok', m).onclick = () => c.toBlob((b) => fechar(b), 'image/jpeg', 0.85);
   });
 }
 async function carregarFoto(imgEl, regId) {
@@ -92,6 +108,11 @@ async function checarAvisos() {
   } catch { /* ignora falha de rede */ }
 }
 function startPolling() { clearInterval(pollTimer); pollTimer = setInterval(checarAvisos, 30000); }
+
+const podeRegistrar = () => user.perfil === 'examinador' || user.perfil === 'estomaterapeuta';
+// A estomaterapeuta alterna entre os modos Estomaterapeuta (fila de avaliação) e Examinador (cadastro e fotos)
+let modo = (() => { try { return sessionStorage.getItem('modo') === 'exam' ? 'exam' : 'estoma'; } catch { return 'estoma'; } })();
+const modoSwitch = () => (user.perfil === 'estomaterapeuta' ? `<div class="tabs modo"><button data-modo="estoma" class="${modo === 'estoma' ? 'on' : ''}">${I('check')} Estomaterapeuta</button><button data-modo="exam" class="${modo === 'exam' ? 'on' : ''}">${I('camera')} Examinador</button></div>` : '');
 
 // ---------- Proteção de tela ----------
 // Um site não consegue impedir capturas feitas pelo sistema do aparelho (print do celular, Win+Shift+S, foto da tela).
@@ -166,6 +187,7 @@ function bindShell() {
   $('#badge').onclick = () => go('home', { tab: null });
   $('#conta').onclick = () => go('conta');
   $('#out').onclick = async () => { try { await api('/logout', { method: 'POST' }); } catch { /* já expirou */ } logout(); };
+  $$('[data-modo]').forEach((b) => (b.onclick = () => { modo = b.dataset.modo; try { sessionStorage.setItem('modo', modo); } catch { /* sem armazenamento */ } go('home', { tab: null }); }));
   checarAvisos(); lazyFotos();
 }
 // fotos em miniatura só carregam quando aparecem na tela
@@ -210,6 +232,7 @@ async function homeEstoma() {
   const [ag, av] = await Promise.all([api('/registros?status=enviado'), api('/registros?status=avaliado')]);
   const list = tab === 'enviado' ? ag : av;
   $('#app').innerHTML = shell(`${hero(`Olá, ${esc(primeiroNome(user.nome))} 👋`, hoje())}
+    ${modoSwitch()}
     <div class="kpis">${kpi('clock', 'Aguardando avaliação', ag.length, 'warn')}${kpi('check', 'Avaliados', av.length, 'ok')}</div>
     <div class="tabs"><button data-t="enviado" class="${tab === 'enviado' ? 'on' : ''}">Aguardando</button><button data-t="avaliado" class="${tab === 'avaliado' ? 'on' : ''}">Avaliados</button></div>
     ${list.map(cardRegistro).join('') || vazio('inbox', tab === 'enviado' ? 'Nenhum caso aguardando' : 'Nenhum caso avaliado ainda', tab === 'enviado' ? 'Quando o examinador enviar um caso, ele aparece aqui.' : '')}`);
@@ -222,7 +245,8 @@ async function homeExam() {
   regs.sort((a, b) => Number(b.novo) - Number(a.novo));
   const aguardando = regs.filter((r) => r.status === 'enviado').length, novas = regs.filter((r) => r.novo).length;
   $('#app').innerHTML = shell(`${hero(`Olá, ${esc(primeiroNome(user.nome))} 👋`, hoje(), `<button id="novo">${I('plus')} Novo paciente</button>`)}
-    <div class="kpis">${kpi('users', 'Pacientes', pacs.length)}${kpi('clock', 'Aguardando avaliação', aguardando, 'warn')}${kpi('check', 'Novas devolutivas', novas, 'ok')}</div>
+    ${modoSwitch()}
+    <div class="kpis">${kpi('users', 'Pacientes', pacs.length)}${kpi('clock', 'Aguardando avaliação', aguardando, 'warn')}${user.perfil === 'examinador' ? kpi('check', 'Novas devolutivas', novas, 'ok') : ''}</div>
     <div class="grid2"><section><div class="sec-h"><h2>Pacientes</h2></div>
       <div class="search">${I('search')}<input id="q" placeholder="Buscar por nome, atendimento ou setor" value="${esc(q)}"></div>
       ${pacs.map(cardPaciente).join('') || vazio('users', 'Nenhum paciente encontrado', 'Cadastre o primeiro em “Novo paciente”.')}</section>
@@ -347,7 +371,7 @@ async function renderPaciente() {
       <div class="chips"><span class="chip">Atend. ${esc(p.prontuario)}</span>${p.setor ? `<span class="chip">${esc(p.setor)}</span>` : ''}${p.leito ? `<span class="chip">Leito ${esc(p.leito)}</span>` : ''}${idade ? `<span class="chip">${idade}</span>` : ''}${p.sexo ? `<span class="chip">${esc(p.sexo)}</span>` : ''}${p.braden ? `<span class="chip">Braden ${esc(p.braden)}</span>` : ''}</div></div></div>
     ${p.comorbidades ? `<p style="margin:14px 0 4px">${esc(p.comorbidades)}</p>` : ''}
     <div class="muted" style="margin-top:10px">Consentimento: ${esc(p.consentimentoPor)} em ${fmt(p.consentimentoEm)}</div>
-    <div class="acoes">${user.perfil === 'examinador' ? `<button class="primary" id="nova">${I('plus')} Nova lesão / foto</button>` : ''}
+    <div class="acoes">${podeRegistrar() ? `<button class="primary" id="nova">${I('plus')} Nova lesão / foto</button>` : ''}
     ${user.perfil !== 'examinador' && p.registros.some((r) => r.status !== 'rascunho') ? `<button id="pdfhist">${I('file')} Baixar histórico completo (PDF)</button>` : ''}</div><div class="err" id="e"></div></div>
     <div class="card"><div class="sec-h" style="margin-top:0"><h2>Evolução</h2></div>${comparar(p.registros)}</div>
     <div class="sec-h"><h2>Histórico de lesões</h2></div>
@@ -380,7 +404,8 @@ async function renderRegistro() {
   $('#app').innerHTML = shell(`<ol class="stepper">${passos}</ol>
   <div class="cols"><div class="col-foto"><div class="card">
     ${r.foto ? '<img class="foto" id="foto" alt="Foto da lesão">' : vazio('image', 'Nenhuma foto anexada')}
-    ${isEx && rascunho ? `<label>${r.foto ? 'Trocar foto' : 'Foto da lesão'}</label><input type="file" id="file" accept="image/*" capture="environment">
+    ${podeRegistrar() && rascunho ? `<button class="primary" id="camera" style="width:100%;margin-top:10px">${I('camera')} ${r.foto ? 'Tirar outra foto' : 'Tirar foto'}</button>
+      <div class="muted" style="margin-top:6px">A foto é tirada dentro do app e não fica salva na galeria do aparelho.</div>
       <button class="send" id="enviar" style="width:100%;margin-top:10px" ${r.foto ? '' : 'disabled'}>Enviar para Estomaterapeuta</button>
       <button class="danger small" id="excluir" style="margin-top:8px">Excluir rascunho</button>` : ''}
     <div class="err" id="e"></div></div></div>
@@ -395,7 +420,7 @@ async function renderRegistro() {
      ${av.retornoDias != null ? `<p class="muted">Reavaliar em ${av.retornoDias} dia(s).</p>` : ''}
      ${user.perfil !== 'examinador' ? `<button class="primary" id="pdf">${I('file')} Baixar relatório (PDF)</button>` : ''}</div>`
    : r.status === 'enviado' && isEx ? `<div class="card">${vazio('clock', 'Aguardando avaliação da estomaterapeuta', 'Você será avisado quando a devolutiva chegar.')}</div>` : ''}
-  ${!isEx && r.status === 'enviado' ? `<form class="card" id="av"><h2>Sua avaliação</h2>
+  ${user.perfil === 'estomaterapeuta' && r.status === 'enviado' ? `<form class="card" id="av"><h2>Sua avaliação</h2>
     <label>Classificação da lesão</label><select name="estagio"><option value="">—</option>${Object.entries(ESTAGIO).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
     <label>Tratamento indicado *</label><textarea name="tratamento" required data-voz placeholder="Limpeza, cobertura, frequência de troca..."></textarea>
     <label>Orientações *</label><textarea name="orientacoes" required data-voz placeholder="Reposicionamento, superfície de suporte, nutrição, sinais de alerta..."></textarea>
@@ -406,9 +431,9 @@ async function renderRegistro() {
   $('#back').onclick = () => go('home');
   $('#hist').onclick = () => go('paciente', { id: r.pacienteId });
   if (r.foto) carregarFoto($('#foto'), r.id);
-  if ($('#file')) $('#file').onchange = async (ev) => {
-    const f = ev.target.files[0]; if (!f) return; $('#e').textContent = 'Enviando foto…';
-    try { const blob = await reduzirImagem(f); await api(`/registros/${r.id}/foto`, { method: 'PUT', body: blob, headers: { 'Content-Type': 'image/jpeg' } }); render(); }
+  if ($('#camera')) $('#camera').onclick = async () => {
+    const blob = await abrirCamera(); if (!blob) return; $('#e').textContent = 'Enviando foto…';
+    try { await api(`/registros/${r.id}/foto`, { method: 'PUT', body: blob, headers: { 'Content-Type': 'image/jpeg' } }); render(); }
     catch (e) { $('#e').textContent = e.message; }
   };
   if ($('#enviar')) $('#enviar').onclick = async () => {
@@ -435,7 +460,7 @@ async function render() {
     if (!user) { user = await api('/me'); startPolling(); }
     const v = state.view;
     if (v === 'conta') return renderConta();
-    if (v === 'home') return user.perfil === 'admin' ? await homeAdmin() : user.perfil === 'examinador' ? await homeExam() : await homeEstoma();
+    if (v === 'home') return user.perfil === 'admin' ? await homeAdmin() : user.perfil === 'examinador' || (user.perfil === 'estomaterapeuta' && modo === 'exam') ? await homeExam() : await homeEstoma();
     if (user.perfil === 'admin') return await homeAdmin();
     if (v === 'novoPaciente') return renderNovoPaciente();
     if (v === 'paciente') return await renderPaciente();

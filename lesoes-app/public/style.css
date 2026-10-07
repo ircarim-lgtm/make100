@@ -232,3 +232,17 @@ img { -webkit-user-drag:none; user-select:none; pointer-events:none; }
 .cover.on { display:grid; } .cover p { margin:8px 0 2px; font-size:20px; font-weight:700; } .cover small { color:#9fb3cf; }
 tr.alerta td { color:var(--err); font-weight:650; }
 @media print { html,body { background:#fff !important; } body > * { display:none !important; } body::before { content:"Impressão bloqueada por segurança."; display:block; padding:48px; font:600 20px system-ui,sans-serif; color:#000; } }
+
+/* Câmera dentro do app */
+.cam { position:fixed; inset:0; z-index:9990; display:flex; flex-direction:column; background:#000; color:#fff; }
+.cam video,.cam canvas { flex:1; min-height:0; width:100%; object-fit:contain; background:#000; }
+.cam video[hidden],.cam canvas[hidden],.cam-bar[hidden] { display:none; }
+.cam-dica { padding:10px 14px; text-align:center; font-size:13px; color:#cfe0f5; background:rgba(255,255,255,.08); }
+.cam-msg { position:absolute; left:0; right:0; top:42%; padding:0 28px; text-align:center; font-size:16px; }
+.cam-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 20px calc(16px + env(safe-area-inset-bottom)); background:#000; }
+.cam-bar > * { flex:1; } .cam-bar > span { visibility:hidden; }
+.cam-bar button { color:#fff; background:rgba(255,255,255,.12); border-color:rgba(255,255,255,.25); }
+.cam-bar button.primary { background:var(--grad); border-color:transparent; }
+.cam-bar .cam-shot { flex:none; width:72px; height:72px; padding:0; margin:0 auto; border:5px solid #fff; border-radius:50%; background:rgba(255,255,255,.25); }
+.cam-bar > button:first-child:not(.cam-shot) { flex:1; }
+.tabs.modo button { display:inline-flex; align-items:center; justify-content:center; gap:7px; }
