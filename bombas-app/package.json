@@ -1,0 +1,8 @@
+{
+  "name": "bombas-app",
+  "version": "1.0.0",
+  "description": "Rastreio de bombas de infusão por QR Code e setor",
+  "private": true,
+  "scripts": { "start": "node server.js", "test": "node test.js" },
+  "engines": { "node": ">=20" }
+}

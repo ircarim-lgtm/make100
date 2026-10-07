@@ -1,0 +1,11 @@
+{
+  "name": "Bombas de Infusão",
+  "short_name": "Bombas",
+  "description": "Escaneie o QR Code da bomba de infusão e registre o setor atual",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f3f6f9",
+  "theme_color": "#0b3d5c",
+  "lang": "pt-BR",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
