@@ -1,0 +1,34 @@
+{
+  "mode": "shadow",
+  "_mode_help": "shadow = só lê e propõe (grava em logs/). draft = cria rascunhos. live = executa ações permitidas.",
+  "language": "pt-BR",
+  "accounts": [
+    {"address": "sabrina.verplohz@hospitalmarieta.org.br", "type": "work", "provider": "outlook", "connected": false},
+    {"address": "ircarim@gmail.com", "type": "personal", "provider": "gmail", "connected": true}
+  ],
+  "vip_senders": [
+    "Fabiane Martins Venâncio", "Caroline Schenck Albin", "Eduardo Salvaia", "Ana Totti",
+    "Michele Farias Lima", "Jamile Fernanda Lima", "Pamela Almeida",
+    "Charlene Débora Cristina Oliveira", "Liege Sarmento"
+  ],
+  "never_reply_alert_only": ["Irmã Simone Santana", "Irmã Misaela"],
+  "tone": {
+    "formal": ["Ana Totti", "Débora Reis", "Janaína Palma"],
+    "default": "informal"
+  },
+  "never_read_never_touch": {
+    "_help": "Bancos: o agente não abre nem altera. Confirmar lista de domínios com a usuária.",
+    "domains": ["c6bank.com.br", "bradesco.com.br", "campanhasbradesco.com.br", "itau.com.br", "nubank.com.br", "santander.com.br", "caixa.gov.br", "bb.com.br", "inter.co"]
+  },
+  "trash_rules": {
+    "work": ["from:wecknow OR from:weknow (confirmar domínio exato)"],
+    "personal": ["category:promotions", "propaganda/promoção/cupom de lojas e marketplaces"],
+    "protect": ["recibos e notas fiscais (NF-e)", "confirmações de pagamento", "remetentes VIP", "bancos"]
+  },
+  "archive_rules": {"newsletters": "arquivar sem apagar, entram no digest semanal"},
+  "calendar": {"autonomy": "create_events_after_checking_availability", "source": "Google Calendar sincronizado com Outlook"},
+  "followup_after_hours": 24,
+  "schedule": {"realtime": true, "daily_briefing": "07:30"},
+  "alerts": {"urgent": "push"},
+  "scan": {"batch_size": 100, "backlog_target": "mensagens IMPORTANT não lidas (~3.941)"}
+}
