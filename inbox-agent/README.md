@@ -4,7 +4,7 @@ Agente que triagem e automatiza as caixas de e-mail (Outlook do trabalho + Gmail
 
 ## Estado atual
 - Gmail pessoal (ircarim@gmail.com): conectado via conector Gmail do Claude.
-- Outlook do Hospital Marieta: NÃO conectado. Ver "Conectar o Outlook".
+- Outlook do Hospital Marieta: atendido pelo Copilot (ver `COPILOT_PROMPT.md`). Não está conectado ao Claude.
 - Modo: `shadow` (só lê e propõe).
 
 ## Arquivos
