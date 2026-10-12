@@ -24,6 +24,8 @@
   --branco:#fff;
   --sombra:0 10px 30px rgba(30,26,23,.10);
   --pill:999px;
+  --zap:#17803f;          /* verde WhatsApp: ação de compra */
+  --zap-dark:#126a34;
   --display:'Fraunces',Georgia,'Times New Roman',serif;
   --sans:'Instrument Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
 }
@@ -49,6 +51,9 @@ em{font-style:italic}
 .btn:hover svg{transform:translateX(4px)}
 .btn.light{background:#fff;color:var(--brasa);box-shadow:none}
 .btn.light:hover{background:var(--creme)}
+.btn.wa{background:var(--zap);box-shadow:0 8px 20px rgba(23,128,63,.32)}
+.btn.wa:hover{background:var(--zap-dark)}
+.wi{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .btn.ghost{background:transparent;color:#fff;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.7)}
 .btn.ghost:hover{background:rgba(255,255,255,.14)}
 
@@ -77,6 +82,9 @@ nav.main a.on{background:var(--carvao);color:#fff}
 .icons svg{width:22px;height:22px;stroke:var(--carvao);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .badge{position:absolute;top:1px;right:0;background:var(--brasa);color:#fff;font-size:.62rem;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:grid;place-items:center;padding:0 5px}
 .icons .burger{display:none}
+.wa-pill{position:relative;display:inline-flex;align-items:center;gap:9px;background:var(--zap);color:#fff;padding:11px 20px;border-radius:var(--pill);font-size:.8rem;font-weight:600;letter-spacing:.04em;transition:.2s}
+.wa-pill:hover{background:var(--zap-dark);transform:translateY(-1px)}
+.wa-pill .badge{position:absolute;top:-6px;right:-4px;background:var(--brasa)}
 
 /* Hero */
 .hero{position:relative;height:clamp(500px,74vh,700px);overflow:hidden;background:var(--carvao)}
@@ -162,8 +170,8 @@ section.blk{padding:84px 0 0}
 .price s{font-family:var(--sans);color:var(--suave);font-weight:400;font-size:.86rem;margin-right:8px}
 .pix{font-size:.82rem;color:var(--erva);font-weight:600;margin-top:4px}
 .parc{font-size:.8rem;color:var(--suave);margin-bottom:16px}
-.add{margin-top:auto;background:var(--brasa);color:#fff;padding:14px;font-size:.76rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;border-radius:var(--pill);transition:.2s}
-.add:hover{background:var(--brasa-dark);transform:translateY(-1px)}
+.add{margin-top:auto;display:flex;align-items:center;justify-content:center;gap:9px;background:var(--zap);color:#fff;padding:14px;font-size:.76rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;border-radius:var(--pill);transition:.2s}
+.add:hover{background:var(--zap-dark);transform:translateY(-1px)}
 
 /* Kit */
 .kit{display:grid;grid-template-columns:1.3fr 1fr;gap:0;background:var(--areia);border-radius:32px;overflow:hidden}
@@ -213,12 +221,13 @@ section.blk{padding:84px 0 0}
 .clube .wrap{position:relative;z-index:2;padding:84px 0;display:grid;grid-template-columns:1.1fr 1fr;gap:36px;align-items:center}
 .clube h2{font-size:clamp(2rem,4vw,3.1rem);line-height:1.06}.clube h2 em{color:var(--ouro)}
 .clube p{opacity:.9;margin-top:12px;max-width:40ch}
-.nl{display:flex;background:#fff;border-radius:var(--pill);padding:6px;max-width:480px}
+.nl{display:none}
 .nl input{flex:1;min-width:0;padding:12px 18px;border:0;font:inherit;border-radius:var(--pill);background:transparent;color:var(--carvao)}
 .nl input:focus{outline:none}
 .nl button{background:var(--brasa);color:#fff;padding:0 24px;font-size:.76rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;border-radius:var(--pill)}
 .nl button:hover{background:var(--brasa-dark)}
 .clube small{display:block;margin-top:12px;opacity:.75}
+.clube .btn{padding:18px 34px}
 
 /* Benefícios */
 .benef{background:#f3e5e5;border-bottom:1px solid #ead2d2}
@@ -237,15 +246,19 @@ footer h4{font-size:.74rem;letter-spacing:.18em;text-transform:uppercase;color:#
 footer li{list-style:none;margin-bottom:9px}footer li a{color:#cdbdb0}footer li a:hover{color:#fff}
 .soc2{display:flex;gap:12px}.soc2 span{width:38px;height:38px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(255,255,255,.3);display:grid;place-items:center}
 .soc2 svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:1.6}
+.fone{display:inline-flex;align-items:center;gap:9px;background:var(--zap);color:#fff;padding:11px 20px;border-radius:var(--pill);font-weight:600;margin-bottom:12px}
 .pay{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
 .pay span{box-shadow:inset 0 0 0 1px rgba(255,255,255,.3);border-radius:var(--pill);padding:5px 14px;font-size:.7rem;font-weight:600;letter-spacing:.08em}
 .copy{border-top:1px solid rgba(255,255,255,.14);margin-top:38px;padding-top:20px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:.78rem;color:#b8a89a}
 .copy a{text-decoration:underline}
 
 /* Botão WhatsApp, lightbox, toast */
-.zap{position:fixed;right:16px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:70;display:flex;align-items:center;gap:10px;background:#1f8f4e;color:#fff;padding:13px 20px 13px 16px;border-radius:var(--pill);font-size:.84rem;font-weight:600;box-shadow:0 10px 26px rgba(0,0,0,.25);transition:transform .2s}
+.zap{position:fixed;right:16px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:70;display:flex;align-items:center;gap:10px;background:var(--zap);color:#fff;padding:13px 20px 13px 16px;border-radius:var(--pill);font-size:.84rem;font-weight:600;box-shadow:0 10px 26px rgba(0,0,0,.25);transition:transform .2s}
 .zap:hover{transform:translateY(-2px)}
-.zap svg{width:22px;height:22px;stroke:#fff;fill:none;stroke-width:1.8}
+.zap svg{width:22px;height:22px}
+.zap::before{content:"";position:absolute;inset:0;border-radius:var(--pill);box-shadow:0 0 0 0 rgba(23,128,63,.5);animation:pulso 2.6s infinite}
+@keyframes pulso{70%{box-shadow:0 0 0 16px rgba(23,128,63,0)}100%{box-shadow:0 0 0 0 rgba(23,128,63,0)}}
+@media (prefers-reduced-motion:reduce){.zap::before{animation:none}}
 .lb{position:fixed;inset:0;background:rgba(10,7,5,.92);z-index:100;display:none;place-items:center;padding:24px}
 .lb.on{display:grid}
 .lb img{max-height:86vh;max-width:min(1200px,94vw);object-fit:contain;border-radius:14px}
@@ -280,6 +293,7 @@ footer li{list-style:none;margin-bottom:9px}footer li a{color:#cdbdb0}footer li 
   .fgrid{grid-template-columns:1fr 1fr}
 }
 @media (max-width:600px){
+  .wa-pill span.t{display:none}.wa-pill{padding:10px;margin-right:4px}
   header.site .wrap{gap:10px}.icons{gap:0}.icons button{width:36px}.logo .n1{font-size:1.15rem}.logo svg{width:32px;height:32px}
   .topbar .soc{display:none}.topbar .wrap{justify-content:center;text-align:center}
   .arrow{display:none}
@@ -303,11 +317,12 @@ footer li{list-style:none;margin-bottom:9px}footer li a{color:#cdbdb0}footer li 
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="i-wa" viewBox="0 0 24 24"><path d="M3 21l1.6-5A8.5 8.5 0 1112 20.5a8.5 8.5 0 01-4.3-1.2z"/><path d="M9 9c0 3 3 6 6 6l1-2-2-1-1 .7c-.9-.4-1.6-1.1-2-2l.7-1-1-2z"/></symbol></svg>
 
 <div class="topbar">
   <div class="wrap">
-    <div>Frete grátis acima de R$ 399 &nbsp;·&nbsp; <b>5% off no Pix</b> &nbsp;·&nbsp; 10x sem juros</div>
-    <div class="soc"><a href="#">Instagram</a><a href="#">Facebook</a><a href="#">WhatsApp</a></div>
+    <div>Pedidos e dúvidas pelo WhatsApp <b data-fone>(51) 99999-0000</b> &nbsp;·&nbsp; 5% off no Pix</div>
+    <div class="soc"><a href="#">Instagram</a><a href="#">Facebook</a></div>
   </div>
 </div>
 
@@ -326,9 +341,7 @@ footer li{list-style:none;margin-bottom:9px}footer li a{color:#cdbdb0}footer li 
       <a href="#rodape">Contato</a>
     </nav>
     <div class="icons">
-      <button aria-label="Buscar"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button>
-      <button aria-label="Minha conta"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg></button>
-      <button aria-label="Carrinho" id="cartBtn"><svg viewBox="0 0 24 24"><path d="M5 8h14l-1.2 12H6.2z"/><path d="M9 8V6a3 3 0 016 0v2"/></svg><span class="badge" id="cartN">0</span></button>
+      <a href="#" class="wa-pill" id="waTop" aria-label="Pedir pelo WhatsApp"><svg class="wi"><use href="#i-wa"/></svg><span class="t">Peça pelo WhatsApp</span><span class="badge" id="listN" hidden>0</span></a>
       <button class="burger" id="burger" aria-label="Menu"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
     </div>
   </div>
@@ -343,10 +356,10 @@ footer li{list-style:none;margin-bottom:9px}footer li a{color:#cdbdb0}footer li 
       <h1>Vista a <em>tradição</em> do jeito certo.</h1>
       <p class="sub">Ponchos, botas e guaiacas em couro e lã legítimos, feitos por artesãos gaúchos.</p>
       <div class="cta-row">
-        <a href="#mais-vendidos" class="btn">Quero vestir <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        <a href="#" class="btn wa" data-wa="Olá! Vi o site e quero conhecer a coleção campeira."><svg class="wi"><use href="#i-wa"/></svg> Falar no WhatsApp</a>
         <a href="#categorias" class="btn ghost">Ver categorias</a>
       </div>
-      <div class="proof"><span><span class="st">★★★★★</span> 4,9 de 5</span><span>Pix com 5% off</span><span>Troca grátis em 30 dias</span></div>
+      <div class="proof"><span><span class="st">★★★★★</span> 4,9 de 5</span><span>Resposta rápida no Zap</span><span>Pix com 5% off</span></div>
     </div></div></div>
   </div>
   <div class="slide">
@@ -356,9 +369,9 @@ footer li{list-style:none;margin-bottom:9px}footer li a{color:#cdbdb0}footer li 
       <h1>Feito para a <em>lida</em>, bonito para a festa.</h1>
       <p class="sub">Botas, cintos e guaiacas que ficam melhores a cada uso.</p>
       <div class="cta-row">
-        <a href="#mais-vendidos" class="btn">Ver mais vendidos <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        <a href="#" class="btn wa" data-wa="Olá! Quero ver as botas, cintos e guaiacas de couro."><svg class="wi"><use href="#i-wa"/></svg> Pedir pelo WhatsApp</a>
       </div>
-      <div class="proof"><span>10x sem juros</span><span>Frete grátis acima de R$ 399</span></div>
+      <div class="proof"><span>Pix ou cartão</span><span>Enviamos para todo o Brasil</span></div>
     </div></div></div>
   </div>
   <div class="slide">
@@ -368,7 +381,7 @@ footer li{list-style:none;margin-bottom:9px}footer li a{color:#cdbdb0}footer li 
       <h1>Pilchas para o <em>20 de setembro</em>.</h1>
       <p class="sub">Bombachas, boinas, lenços e ponchos para vestir a festa do começo ao fim.</p>
       <div class="cta-row">
-        <a href="#promo" class="btn">Ver ofertas <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        <a href="#" class="btn wa" data-wa="Olá! Quero as pilchas da Semana Farroupilha."><svg class="wi"><use href="#i-wa"/></svg> Chamar no WhatsApp</a>
       </div>
       <div class="proof"><span>Até 30% off em ponchos e pelegos</span></div>
     </div></div></div>
@@ -383,7 +396,7 @@ footer li{list-style:none;margin-bottom:9px}footer li a{color:#cdbdb0}footer li 
   <div class="it"><svg viewBox="0 0 40 40"><path d="M8 28c0-10 8-18 24-18 0 14-8 22-18 22"/><path d="M8 32c6-8 12-12 18-14"/></svg><div><b>Couro legítimo</b><small>Curtido de forma responsável</small></div></div>
   <div class="it"><svg viewBox="0 0 40 40"><path d="M20 6l3 9h9l-7 5 3 9-8-6-8 6 3-9-7-5h9z"/></svg><div><b>Feito no RS</b><small>Artesãos gaúchos</small></div></div>
   <div class="it"><svg viewBox="0 0 40 40"><path d="M6 20a14 14 0 0126-6"/><path d="M34 20a14 14 0 01-26 6"/><path d="M30 8v7h-7M10 32v-7h7"/></svg><div><b>Troca em 30 dias</b><small>A primeira troca é por nossa conta</small></div></div>
-  <div class="it"><svg viewBox="0 0 40 40"><rect x="5" y="11" width="30" height="20" rx="3"/><path d="M5 18h30M11 25h7"/></svg><div><b>Pix ou 10x sem juros</b><small>Compra 100% segura</small></div></div>
+  <div class="it"><svg viewBox="0 0 40 40"><rect x="5" y="11" width="30" height="20" rx="3"/><path d="M5 18h30M11 25h7"/></svg><div><b>Pague como preferir</b><small>Pix, cartão ou link, combinado no Zap</small></div></div>
 </div></div>
 
 <!-- CATEGORIAS -->
@@ -406,7 +419,7 @@ footer li{list-style:none;margin-bottom:9px}footer li a{color:#cdbdb0}footer li 
       <div class="eyebrow">Oferta por tempo limitado</div>
       <h2>Até <em>30% off</em> em ponchos e pelegos</h2>
       <p>Aqueça o inverno do jeito gaúcho. Lã grossa, caimento perfeito.</p>
-      <div><a href="#mais-vendidos" class="btn light">Aproveitar agora <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>
+      <div><a href="#" class="btn light" data-wa="Olá! Quero aproveitar a oferta de até 30% off em ponchos e pelegos."><svg class="wi"><use href="#i-wa"/></svg> Aproveitar no WhatsApp</a></div>
     </div>
     <div class="r"><img loading="lazy" src="img/cavalo-corda.jpg" alt="Pelego e manta de tear sobre o cavalo"></div>
   </div>
@@ -418,26 +431,26 @@ footer li{list-style:none;margin-bottom:9px}footer li a{color:#cdbdb0}footer li 
   <div class="prods">
     <article class="card rv">
       <span class="tag red">-15%</span>
-      <button class="heart" aria-label="Favoritar"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-9-9a5 5 0 019-3 5 5 0 019 3c-2 4.6-9 9-9 9z"/></svg></button>
+      <button class="heart" aria-label="Salvar na minha lista"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-9-9a5 5 0 019-3 5 5 0 019 3c-2 4.6-9 9-9 9z"/></svg></button>
       <div class="ph"><img loading="lazy" src="img/botas-piton.jpg" alt="Botas campeiras de couro trabalhado"></div>
-      <div class="bd"><span class="ct">Botas</span><h3>Bota Campeira Couro Trabalhado</h3><div class="stars">★★★★★<em>4,9 (124)</em></div><div class="price"><s>R$ 576,00</s>R$ 489,90</div><div class="pix">R$ 465,41 no Pix</div><div class="parc">ou 10x de R$ 48,99 sem juros</div><button class="add" data-price="489.90">Adicionar ao carrinho</button></div>
+      <div class="bd"><span class="ct">Botas</span><h3>Bota Campeira Couro Trabalhado</h3><div class="stars">★★★★★<em>4,9 (124)</em></div><div class="price"><s>R$ 576,00</s>R$ 489,90</div><div class="pix">R$ 465,41 no Pix</div><div class="parc">ou 10x de R$ 48,99 sem juros</div><a href="#" class="add wa-prod"><svg class="wi"><use href="#i-wa"/></svg> Comprar no WhatsApp</a></div>
     </article>
     <article class="card rv">
-      <button class="heart" aria-label="Favoritar"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-9-9a5 5 0 019-3 5 5 0 019 3c-2 4.6-9 9-9 9z"/></svg></button>
+      <button class="heart" aria-label="Salvar na minha lista"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-9-9a5 5 0 019-3 5 5 0 019 3c-2 4.6-9 9-9 9z"/></svg></button>
       <div class="ph"><img loading="lazy" src="img/cinto-fivela.jpg" alt="Guaiaca de couro legítimo com fivela prateada" style="object-position:40% 50%"></div>
-      <div class="bd"><span class="ct">Cintos e guaiacas</span><h3>Guaiaca Couro Legítimo Fivela Prata</h3><div class="stars">★★★★★<em>4,9 (201)</em></div><div class="price">R$ 189,90</div><div class="pix">R$ 180,41 no Pix</div><div class="parc">ou 10x de R$ 18,99 sem juros</div><button class="add" data-price="189.90">Adicionar ao carrinho</button></div>
+      <div class="bd"><span class="ct">Cintos e guaiacas</span><h3>Guaiaca Couro Legítimo Fivela Prata</h3><div class="stars">★★★★★<em>4,9 (201)</em></div><div class="price">R$ 189,90</div><div class="pix">R$ 180,41 no Pix</div><div class="parc">ou 10x de R$ 18,99 sem juros</div><a href="#" class="add wa-prod"><svg class="wi"><use href="#i-wa"/></svg> Comprar no WhatsApp</a></div>
     </article>
     <article class="card rv">
       <span class="tag">Mais amado</span>
-      <button class="heart" aria-label="Favoritar"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-9-9a5 5 0 019-3 5 5 0 019 3c-2 4.6-9 9-9 9z"/></svg></button>
+      <button class="heart" aria-label="Salvar na minha lista"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-9-9a5 5 0 019-3 5 5 0 019 3c-2 4.6-9 9-9 9z"/></svg></button>
       <div class="ph"><img loading="lazy" src="img/mate-yerba.jpg" alt="Cuia de chimarrão com bomba inox"></div>
-      <div class="bd"><span class="ct">Chimarrão</span><h3>Cuia de Chimarrão com Bomba Inox</h3><div class="stars">★★★★★<em>5,0 (387)</em></div><div class="price">R$ 129,90</div><div class="pix">R$ 123,41 no Pix</div><div class="parc">ou 10x de R$ 12,99 sem juros</div><button class="add" data-price="129.90">Adicionar ao carrinho</button></div>
+      <div class="bd"><span class="ct">Chimarrão</span><h3>Cuia de Chimarrão com Bomba Inox</h3><div class="stars">★★★★★<em>5,0 (387)</em></div><div class="price">R$ 129,90</div><div class="pix">R$ 123,41 no Pix</div><div class="parc">ou 10x de R$ 12,99 sem juros</div><a href="#" class="add wa-prod"><svg class="wi"><use href="#i-wa"/></svg> Comprar no WhatsApp</a></div>
     </article>
     <article class="card rv">
       <span class="tag red">-20%</span>
-      <button class="heart" aria-label="Favoritar"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-9-9a5 5 0 019-3 5 5 0 019 3c-2 4.6-9 9-9 9z"/></svg></button>
+      <button class="heart" aria-label="Salvar na minha lista"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-9-9a5 5 0 019-3 5 5 0 019 3c-2 4.6-9 9-9 9z"/></svg></button>
       <div class="ph"><img loading="lazy" src="img/poncho-croche.jpg" alt="Poncho de lã com franjas"></div>
-      <div class="bd"><span class="ct">Ponchos e pelegos</span><h3>Poncho de Lã com Franjas</h3><div class="stars">★★★★☆<em>4,7 (96)</em></div><div class="price"><s>R$ 437,00</s>R$ 349,90</div><div class="pix">R$ 332,41 no Pix</div><div class="parc">ou 10x de R$ 34,99 sem juros</div><button class="add" data-price="349.90">Adicionar ao carrinho</button></div>
+      <div class="bd"><span class="ct">Ponchos e pelegos</span><h3>Poncho de Lã com Franjas</h3><div class="stars">★★★★☆<em>4,7 (96)</em></div><div class="price"><s>R$ 437,00</s>R$ 349,90</div><div class="pix">R$ 332,41 no Pix</div><div class="parc">ou 10x de R$ 34,99 sem juros</div><a href="#" class="add wa-prod"><svg class="wi"><use href="#i-wa"/></svg> Comprar no WhatsApp</a></div>
     </article>
   </div>
 </section>
@@ -455,7 +468,7 @@ footer li{list-style:none;margin-bottom:9px}footer li a{color:#cdbdb0}footer li 
       <h2>Kit <em>Campeiro</em> completo</h2>
       <ul><li>Bota Campeira Couro Trabalhado</li><li>Guaiaca Couro Legítimo Fivela Prata</li><li>Cuia de Chimarrão com Bomba Inox</li></ul>
       <div class="tot"><b>R$ 688,25</b><s>R$ 809,70</s><span class="eco">Economize R$ 121,45</span></div>
-      <div><button class="btn add-kit" data-price="688.25">Adicionar o kit <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></div>
+      <div><a href="#" class="btn wa" data-wa="Olá! Quero o Kit Campeiro completo (bota, guaiaca e cuia) por R$ 688,25. Está disponível?"><svg class="wi"><use href="#i-wa"/></svg> Pedir o kit no WhatsApp</a></div>
     </div>
   </div>
 </section>
@@ -496,16 +509,16 @@ footer li{list-style:none;margin-bottom:9px}footer li a{color:#cdbdb0}footer li 
 <section class="clube">
   <img loading="lazy" src="img/hero-silhueta.jpg" alt="" aria-hidden="true">
   <div class="wrap">
-    <div><h2>Ganhe <em>10% off</em> na primeira compra.</h2><p>Entre para o Clube Querência e receba ofertas, lançamentos e dicas de quem entende de tradição.</p></div>
-    <div><form class="nl" id="nl"><label for="em" style="position:absolute;left:-9999px">E-mail</label><input id="em" type="email" placeholder="Seu melhor e-mail" required><button>Quero o cupom</button></form><small>Sem spam. Cancele quando quiser.</small></div>
+    <div><h2>Ganhe <em>10% off</em> chamando no WhatsApp.</h2><p>Conte o que você procura e receba o cupom da primeira compra na hora, direto na conversa.</p></div>
+    <div><a href="#" class="btn wa" data-wa="Olá! Quero o cupom de 10% off na primeira compra."><svg class="wi"><use href="#i-wa"/></svg> Quero meu cupom</a><small>Atendimento de segunda a sábado.</small></div>
   </div>
 </section>
 
 <!-- BENEFÍCIOS -->
 <div class="benef"><div class="wrap">
-  <div class="it"><svg viewBox="0 0 40 40"><path d="M4 12h20v16H4zM24 18h8l4 5v5H24z"/><circle cx="12" cy="30" r="3"/><circle cx="29" cy="30" r="3"/></svg><div><b>Frete grátis</b><small>Acima de R$ 399</small></div></div>
+  <div class="it"><svg viewBox="0 0 40 40"><path d="M4 12h20v16H4zM24 18h8l4 5v5H24z"/><circle cx="12" cy="30" r="3"/><circle cx="29" cy="30" r="3"/></svg><div><b>Envio para todo o Brasil</b><small>Combinamos o frete no Zap</small></div></div>
   <div class="it"><svg viewBox="0 0 40 40"><path d="M6 20a14 14 0 0126-6"/><path d="M34 20a14 14 0 01-26 6"/><path d="M30 8v7h-7M10 32v-7h7"/></svg><div><b>Troca fácil</b><small>30 dias para trocar</small></div></div>
-  <div class="it"><svg viewBox="0 0 40 40"><rect x="9" y="17" width="22" height="16" rx="3"/><path d="M14 17v-4a6 6 0 0112 0v4"/></svg><div><b>Pagamento seguro</b><small>Pix, cartão e boleto</small></div></div>
+  <div class="it"><svg viewBox="0 0 40 40"><rect x="9" y="17" width="22" height="16" rx="3"/><path d="M14 17v-4a6 6 0 0112 0v4"/></svg><div><b>Pague como preferir</b><small>Pix, cartão ou link</small></div></div>
   <div class="it"><svg viewBox="0 0 40 40"><path d="M7 24v-4a13 13 0 0126 0v4"/><rect x="5" y="22" width="6" height="10" rx="2"/><rect x="29" y="22" width="6" height="10" rx="2"/></svg><div><b>Atendimento no Zap</b><small>Segunda a sábado</small></div></div>
 </div></div>
 
@@ -523,20 +536,22 @@ footer li{list-style:none;margin-bottom:9px}footer li a{color:#cdbdb0}footer li 
       </div>
       <div><h4>Links rápidos</h4><ul><li><a href="#">Início</a></li><li><a href="#categorias">Loja</a></li><li><a href="#mais-vendidos">Coleções</a></li><li><a href="#raizes">Tradição</a></li><li><a href="#avaliacoes">Avaliações</a></li></ul></div>
       <div><h4>Atendimento</h4><ul><li><a href="#">Rastrear pedido</a></li><li><a href="#">Política de envio</a></li><li><a href="#">Trocas e devoluções</a></li><li><a href="#">Termos de uso</a></li><li><a href="#">Privacidade</a></li></ul></div>
-      <div><h4>Formas de pagamento</h4><div class="pay"><span>PIX</span><span>VISA</span><span>MASTERCARD</span><span>ELO</span></div></div>
+      <div><h4>Fale com a gente</h4><a href="#" class="fone" id="waFoot"><svg class="wi"><use href="#i-wa"/></svg><span data-fone>(51) 99999-0000</span></a><p style="color:#cdbdb0;font-size:.85rem">Segunda a sábado, das 9h às 18h.</p><div class="pay"><span>PIX</span><span>VISA</span><span>MASTERCARD</span><span>ELO</span></div></div>
     </div>
     <div class="copy"><span>© 2026 Querência Gaúcha. Todos os direitos reservados.</span><span>Fotos provisórias do <a href="https://unsplash.com" target="_blank" rel="noopener">Unsplash</a> · créditos no repositório</span></div>
   </div>
 </footer>
 
-<a href="#" class="zap" aria-label="Falar no WhatsApp"><svg viewBox="0 0 24 24"><path d="M3 21l1.6-5A8.5 8.5 0 1112 20.5a8.5 8.5 0 01-4.3-1.2z"/><path d="M9 9c0 3 3 6 6 6l1-2-2-1-1 .7c-.9-.4-1.6-1.1-2-2l.7-1-1-2z"/></svg><span>Fale com a gente</span></a>
+<a href="#" class="zap" id="zap" aria-label="Pedir pelo WhatsApp"><svg class="wi"><use href="#i-wa"/></svg><span>Peça pelo WhatsApp</span></a>
 <div class="lb" id="lb" role="dialog" aria-modal="true" aria-label="Foto ampliada"><button class="x" aria-label="Fechar">&times;</button><div><img alt=""><p></p></div></div>
 <div class="toast" id="toast" role="status"></div>
 
 <script>
 (function(){
-  var FRETE=399;
-  var brl=function(v){return 'R$ '+v.toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.')};
+  // CONFIGURE AQUI o WhatsApp da loja (somente números, com 55 + DDD)
+  var WHATS='5551999990000',FONE='(51) 99999-0000';
+  var wa=function(t){return 'https://wa.me/'+WHATS+'?text='+encodeURIComponent(t)};
+  document.querySelectorAll('[data-fone]').forEach(function(e){e.textContent=FONE});
 
   // Slider
   var slides=[].slice.call(document.querySelectorAll('.slide')),dotsEl=document.getElementById('dots'),i=0,timer;
@@ -554,22 +569,32 @@ footer li{list-style:none;margin-bottom:9px}footer li a{color:#cdbdb0}footer li 
 
   // Toast
   var toast=document.getElementById('toast'),tt;
-  function say(html){toast.innerHTML=html;toast.classList.add('on');clearTimeout(tt);tt=setTimeout(function(){toast.classList.remove('on')},3200)}
+  function say(html){toast.innerHTML=html;toast.classList.add('on');clearTimeout(tt);tt=setTimeout(function(){toast.classList.remove('on')},2800)}
 
-  // Carrinho com barra de frete grátis
-  var n=0,total=0,cartN=document.getElementById('cartN');
-  function addToCart(p,label){
-    n++;total+=p;cartN.textContent=n;
-    var falta=FRETE-total,pct=Math.min(100,Math.round(total/FRETE*100));
-    var msg=falta>0?'Faltam '+brl(falta)+' para o frete grátis':'Frete grátis desbloqueado!';
-    say('<span>'+label+' adicionado</span><br><span style="opacity:.85;font-size:.82rem">'+msg+'</span><i><b style="width:'+pct+'%"></b></i>');
+  // Links de WhatsApp com mensagem pronta
+  function setWa(el,text){el.href=wa(text);el.target='_blank';el.rel='noopener'}
+  document.querySelectorAll('[data-wa]').forEach(function(a){setWa(a,a.dataset.wa)});
+  document.querySelectorAll('.card').forEach(function(c){
+    var nome=c.querySelector('h3').textContent.trim(),preco=c.querySelector('.price').lastChild.textContent.trim();
+    c.dataset.nome=nome;c.dataset.preco=preco;
+    setWa(c.querySelector('.add'),'Olá! Vi no site e quero este produto: '+nome+' ('+preco+'). Está disponível?');
+  });
+  document.querySelectorAll('.cat').forEach(function(a){setWa(a,'Olá! Quero ver as opções de '+a.querySelector('span').textContent.trim().toLowerCase()+'.')});
+  setWa(document.getElementById('waFoot'),'Olá! Vim pelo site da Querência Gaúcha.');
+
+  // Lista de interesse (coração), enviada de uma vez no WhatsApp
+  var lista=[],listN=document.getElementById('listN'),waTop=document.getElementById('waTop'),zap=document.getElementById('zap');
+  function refresh(){
+    listN.hidden=!lista.length;listN.textContent=lista.length;
+    var txt=lista.length?'Olá! Vi o site e quero estes itens:\n'+lista.map(function(x){return '• '+x.nome+' ('+x.preco+')'}).join('\n')+'\nPode me ajudar com tamanhos e entrega?':'Olá! Vim pelo site da Querência Gaúcha e quero fazer um pedido.';
+    setWa(waTop,txt);setWa(zap,txt);
   }
-  document.querySelectorAll('.add').forEach(function(b){b.onclick=function(){addToCart(parseFloat(b.dataset.price),'Produto')}});
-  document.querySelector('.add-kit').onclick=function(){addToCart(parseFloat(this.dataset.price),'Kit Campeiro')};
-  document.querySelectorAll('.heart').forEach(function(h){h.onclick=function(){h.classList.toggle('on');say(h.classList.contains('on')?'Salvo nos favoritos':'Removido dos favoritos')}});
-  document.getElementById('cartBtn').onclick=function(){say(n?n+' item(ns) · '+brl(total):'Seu carrinho está vazio')};
-  document.getElementById('nl').onsubmit=function(e){e.preventDefault();e.target.reset();say('Pronto! O cupom chega no seu e-mail.')};
-  document.querySelector('.zap').onclick=function(e){e.preventDefault();say('Atendimento no WhatsApp: demonstração do botão.')};
+  document.querySelectorAll('.heart').forEach(function(h){h.onclick=function(){
+    var c=h.closest('.card'),on=h.classList.toggle('on');
+    if(on)lista.push({nome:c.dataset.nome,preco:c.dataset.preco});else lista=lista.filter(function(x){return x.nome!==c.dataset.nome});
+    refresh();say(on?'Salvo na lista. Toque no botão verde para enviar tudo no WhatsApp.':'Removido da lista');
+  }});
+  refresh();
 
   // Lightbox
   var lb=document.getElementById('lb'),lbi=lb.querySelector('img'),lbp=lb.querySelector('p');
