@@ -6,7 +6,7 @@ Abra `index.html` no navegador (a pasta `img/` precisa ficar ao lado).
 No final do `index.html`, procure por `CONFIGURE AQUI`:
 
 ```js
-var WHATS='5551999990000',FONE='(51) 99999-0000';
+var WHATS='5553991048925',FONE='(53) 99104-8925';
 ```
 
 - `WHATS`: só números, com `55` + DDD + número (usado nos links `wa.me`).
