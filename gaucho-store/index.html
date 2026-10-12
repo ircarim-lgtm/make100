@@ -3,226 +3,302 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Querência Gaúcha | Tradição que se veste</title>
+<title>Querência Gaúcha</title>
 <meta name="description" content="Bombachas, botas, ponchos, cintos, boinas e acessórios gaúchos em couro e lã legítimos. Feitos por artesãos do Rio Grande do Sul.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&family=Instrument+Sans:wght@400..700&display=swap" rel="stylesheet">
 <style>
+/* Layout: loja em fluxo clássico (hero > categorias > promo > produtos), com galeria editorial escura no meio. */
 :root{
-  --brasa:#8b1e1e;      /* vermelho do lenço maragato */
+  --brasa:#8b1e1e;        /* vermelho do lenço maragato: ação */
   --brasa-dark:#6d1515;
-  --couro:#8a5a3b;
-  --erva:#2f4a2b;       /* verde da erva-mate */
-  --ouro:#c9a24b;       /* amarelo da bandeira */
+  --ouro:#d9b35a;         /* amarelo da bandeira: destaque */
+  --erva:#2f4a2b;         /* verde da erva-mate: confiança */
   --creme:#f7f1e8;
   --areia:#efe6d7;
   --carvao:#1e1a17;
   --texto:#3a322c;
-  --suave:#7a6f66;
+  --suave:#6f645b;
   --linha:#e6dccd;
   --branco:#fff;
-  --raio:10px;
-  --sombra:0 8px 28px rgba(30,26,23,.10);
-  --serif:'Playfair Display',Georgia,serif;
-  --sans:'DM Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --sombra:0 10px 30px rgba(30,26,23,.10);
+  --pill:999px;
+  --display:'Fraunces',Georgia,'Times New Roman',serif;
+  --sans:'Instrument Sans',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
-body{font-family:var(--sans);color:var(--texto);background:var(--creme);line-height:1.55;-webkit-font-smoothing:antialiased}
+body{font-family:var(--sans);font-size:16px;color:var(--texto);background:var(--creme);line-height:1.6;-webkit-font-smoothing:antialiased}
 img{display:block;max-width:100%}
 a{color:inherit;text-decoration:none}
 button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 .wrap{width:min(1200px,100% - 32px);margin-inline:auto}
 :focus-visible{outline:2px solid var(--ouro);outline-offset:3px}
+::selection{background:var(--brasa);color:#fff}
+
+/* Tipografia */
+h1,h2,h3{font-family:var(--display);font-weight:500;letter-spacing:-.02em;text-wrap:balance}
+em{font-style:italic}
+.eyebrow{font-size:.74rem;letter-spacing:.24em;text-transform:uppercase;font-weight:600;color:var(--ouro)}
+
+/* Botões pílula */
+.btn{display:inline-flex;align-items:center;gap:10px;background:var(--brasa);color:#fff;padding:16px 30px;border-radius:var(--pill);font-size:.82rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;transition:background .2s,transform .2s,box-shadow .2s;box-shadow:0 8px 20px rgba(139,30,30,.28)}
+.btn:hover{background:var(--brasa-dark);transform:translateY(-2px)}
+.btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;transition:transform .2s}
+.btn:hover svg{transform:translateX(4px)}
+.btn.light{background:#fff;color:var(--brasa);box-shadow:none}
+.btn.light:hover{background:var(--creme)}
+.btn.ghost{background:transparent;color:#fff;box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.7)}
+.btn.ghost:hover{background:rgba(255,255,255,.14)}
 
 /* Barra de topo */
-.topbar{background:var(--brasa);color:#fff;font-size:.8rem}
-.topbar .wrap{display:flex;justify-content:space-between;align-items:center;padding:8px 0;gap:12px}
-.topbar b{color:var(--ouro);letter-spacing:.04em}
-.topbar .soc{display:flex;gap:14px}
-.topbar .soc a{opacity:.85}.topbar .soc a:hover{opacity:1}
+.topbar{background:var(--carvao);color:#eadfce;font-size:.8rem}
+.topbar .wrap{display:flex;justify-content:space-between;align-items:center;padding:9px 0;gap:16px}
+.topbar b{color:var(--ouro);font-weight:600}
+.topbar .soc{display:flex;gap:16px}
+.topbar .soc a{opacity:.8}.topbar .soc a:hover{opacity:1}
 
 /* Header */
-header.site{background:var(--creme);position:sticky;top:0;z-index:50;border-bottom:1px solid var(--linha)}
-header.site .wrap{display:flex;align-items:center;justify-content:space-between;gap:24px;height:78px}
-.logo{display:flex;align-items:center;gap:10px;line-height:1}
-.logo svg{width:38px;height:38px;flex:none}
+header.site{background:var(--creme);position:sticky;top:env(safe-area-inset-top,0px);z-index:50;border-bottom:1px solid var(--linha)}
+header.site .wrap{display:flex;align-items:center;justify-content:space-between;gap:24px;height:80px}
+.logo{display:flex;align-items:center;gap:11px;line-height:1}
+.logo svg{width:40px;height:40px;flex:none}
 .logo span{display:block}
-.logo .n1{font-family:var(--serif);font-weight:700;font-size:1.35rem;letter-spacing:.12em;color:var(--carvao)}
-.logo .n2{font-size:.62rem;letter-spacing:.42em;color:var(--brasa);margin-top:5px;font-weight:700}
-nav.main{display:flex;gap:30px;font-size:.78rem;letter-spacing:.09em;font-weight:500;text-transform:uppercase}
-nav.main a{padding:6px 0;border-bottom:2px solid transparent;transition:.2s}
-nav.main a:hover,nav.main a.on{color:var(--brasa);border-color:var(--brasa)}
-.icons{display:flex;gap:18px;align-items:center}
-.icons button{position:relative;display:grid;place-items:center;width:34px;height:34px}
+.logo .n1{font-family:var(--display);font-weight:600;font-size:1.4rem;letter-spacing:.1em;color:var(--carvao)}
+.logo .n2{font-size:.62rem;letter-spacing:.46em;color:var(--brasa);margin-top:5px;font-weight:600}
+nav.main{display:flex;gap:6px;font-size:.78rem;letter-spacing:.08em;font-weight:600;text-transform:uppercase}
+nav.main a{padding:9px 16px;border-radius:var(--pill);transition:.2s}
+nav.main a:hover{background:var(--areia)}
+nav.main a.on{background:var(--carvao);color:#fff}
+.icons{display:flex;gap:6px;align-items:center}
+.icons button{position:relative;display:grid;place-items:center;width:40px;height:40px;border-radius:50%;transition:background .2s}
+.icons button:hover{background:var(--areia)}
 .icons svg{width:22px;height:22px;stroke:var(--carvao);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
-.icons button:hover svg{stroke:var(--brasa)}
-.badge{position:absolute;top:-2px;right:-4px;background:var(--brasa);color:#fff;font-size:.62rem;font-weight:700;min-width:17px;height:17px;border-radius:9px;display:grid;place-items:center;padding:0 4px}
+.badge{position:absolute;top:1px;right:0;background:var(--brasa);color:#fff;font-size:.62rem;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:grid;place-items:center;padding:0 5px}
 .icons .burger{display:none}
 
 /* Hero */
-.hero{position:relative;height:clamp(420px,62vh,620px);overflow:hidden;background:var(--carvao)}
+.hero{position:relative;height:clamp(500px,74vh,700px);overflow:hidden;background:var(--carvao)}
 .slide{position:absolute;inset:0;opacity:0;transition:opacity .9s ease;pointer-events:none}
 .slide.on{opacity:1;pointer-events:auto}
-.slide img{width:100%;height:100%;object-fit:cover;transform:scale(1.06);transition:transform 7s ease-out}
+.slide img{width:100%;height:100%;object-fit:cover;transform:scale(1.06);transition:transform 8s ease-out}
 .slide.on img{transform:scale(1)}
-.slide::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(20,14,10,.78) 0%,rgba(20,14,10,.45) 42%,rgba(20,14,10,0) 72%)}
+.slide::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(18,12,8,.82) 0%,rgba(18,12,8,.5) 38%,rgba(18,12,8,0) 68%)}
 .slide .txt{position:absolute;z-index:2;inset:0;display:flex;flex-direction:column;justify-content:center;color:#fff}
-.slide .txt .in{max-width:520px}
-.eyebrow{font-size:.78rem;letter-spacing:.28em;text-transform:uppercase;color:var(--ouro);font-weight:700;margin-bottom:14px}
-.slide h1{font-family:var(--serif);font-weight:600;font-size:clamp(2.3rem,5.4vw,4rem);line-height:1.08;margin-bottom:16px}
-.slide p{font-size:1.05rem;opacity:.92;max-width:42ch;margin-bottom:28px}
-.btn{display:inline-block;background:var(--brasa);color:#fff;padding:14px 32px;font-size:.78rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;border-radius:3px;transition:.2s}
-.btn:hover{background:var(--brasa-dark);transform:translateY(-1px)}
-.btn.light{background:#fff;color:var(--brasa)}.btn.light:hover{background:var(--creme)}
-.arrow{position:absolute;top:50%;transform:translateY(-50%);z-index:5;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.9);display:grid;place-items:center;box-shadow:var(--sombra);transition:.2s}
+.slide .in{max-width:560px}
+.slide h1{font-size:clamp(2.6rem,6vw,4.8rem);line-height:1.02;margin:14px 0 18px;font-weight:500}
+.slide h1 em{color:var(--ouro);font-weight:400}
+.slide p.sub{font-size:1.1rem;opacity:.92;max-width:40ch;margin-bottom:28px}
+.cta-row{display:flex;gap:12px;flex-wrap:wrap}
+.proof{display:flex;gap:10px 22px;flex-wrap:wrap;margin-top:26px;font-size:.84rem;color:#eadfce}
+.proof span{display:inline-flex;align-items:center;gap:7px}
+.proof .st{color:var(--ouro);letter-spacing:2px}
+.arrow{position:absolute;top:50%;transform:translateY(-50%);z-index:5;width:46px;height:46px;border-radius:50%;background:rgba(255,255,255,.92);display:grid;place-items:center;box-shadow:var(--sombra);transition:.2s}
 .arrow:hover{background:#fff;transform:translateY(-50%) scale(1.08)}
 .arrow svg{width:18px;height:18px;stroke:var(--carvao);fill:none;stroke-width:2}
-.arrow.prev{left:20px}.arrow.next{right:20px}
-.dots{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);z-index:5;display:flex;gap:10px}
+.arrow.prev{left:22px}.arrow.next{right:22px}
+.dots{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);z-index:5;display:flex;gap:10px}
 .dots button{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.5);transition:.3s}
-.dots button.on{background:var(--ouro);width:28px;border-radius:5px}
+.dots button.on{background:var(--ouro);width:30px;border-radius:5px}
 
 /* Faixa de confiança */
-.trust{margin-top:-34px;position:relative;z-index:6}
-.trust .box{background:#fff;border-radius:var(--raio);box-shadow:var(--sombra);display:grid;grid-template-columns:repeat(4,1fr);padding:22px 10px}
+.trust{margin-top:-40px;position:relative;z-index:6}
+.trust .box{background:#fff;border-radius:28px;box-shadow:var(--sombra);display:grid;grid-template-columns:repeat(4,1fr);padding:22px 10px}
 .trust .it{display:flex;gap:14px;align-items:center;padding:4px 22px;border-right:1px solid var(--linha)}
 .trust .it:last-child{border:0}
 .trust svg{width:34px;height:34px;stroke:var(--brasa);fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;flex:none}
-.trust b{display:block;font-size:.84rem;color:var(--carvao)}
-.trust small{color:var(--suave);font-size:.78rem}
+.trust b{display:block;font-size:.9rem;color:var(--carvao)}
+.trust small{color:var(--suave);font-size:.8rem}
 
-/* Títulos de seção */
-section.blk{padding:72px 0 0}
-.sec-t{text-align:center;margin-bottom:38px}
-.sec-t h2{font-family:var(--serif);font-weight:600;font-size:1.65rem;letter-spacing:.14em;text-transform:uppercase;color:var(--carvao)}
-.sec-t h2::after{content:"";display:block;width:54px;height:3px;margin:14px auto 0;background:linear-gradient(90deg,var(--erva) 33%,var(--brasa) 33% 66%,var(--ouro) 66%)}
-.sec-t p{color:var(--suave);margin-top:12px}
+/* Seções */
+section.blk{padding:84px 0 0}
+.sec-t{text-align:center;margin-bottom:42px}
+.sec-t .eyebrow{color:var(--brasa);display:block;margin-bottom:10px}
+.sec-t h2{font-size:clamp(1.9rem,3.6vw,2.7rem);line-height:1.1;color:var(--carvao)}
+.sec-t h2 em{color:var(--brasa)}
+.sec-t p{color:var(--suave);margin:12px auto 0;max-width:52ch}
 
 /* Categorias */
 .cats{display:grid;grid-template-columns:repeat(6,1fr);gap:22px}
 .cat{text-align:center}
-.cat .ov{aspect-ratio:3/4;border-radius:50% / 40%;overflow:hidden;background:var(--areia);box-shadow:0 0 0 5px var(--creme),0 0 0 6px var(--linha);transition:.35s}
+.cat .ov{aspect-ratio:3/4;border-radius:50%/40%;overflow:hidden;background:var(--areia);box-shadow:0 0 0 5px var(--creme),0 0 0 6px var(--linha);transition:.35s}
 .cat img{width:100%;height:100%;object-fit:cover;transition:transform .6s}
 .cat:hover .ov{box-shadow:0 0 0 5px var(--creme),0 0 0 7px var(--brasa)}
 .cat:hover img{transform:scale(1.08)}
-.cat span{display:block;margin-top:18px;font-size:.78rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase}
+.cat span{display:inline-block;margin-top:18px;padding:8px 16px;border-radius:var(--pill);font-size:.74rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;transition:.2s}
+.cat:hover span{background:var(--carvao);color:#fff}
 
 /* Promo */
-.promo{display:grid;grid-template-columns:1fr 1.45fr;border-radius:var(--raio);overflow:hidden;min-height:400px;box-shadow:var(--sombra)}
-.promo .l{background:var(--brasa);color:#fff;padding:52px 46px;display:flex;flex-direction:column;justify-content:center;position:relative;overflow:hidden}
-.promo .l::before{content:"";position:absolute;right:-60px;bottom:-60px;width:220px;height:220px;border-radius:50%;border:30px solid rgba(255,255,255,.06)}
-.promo .eyebrow{color:var(--ouro)}
-.promo h2{font-family:var(--serif);font-weight:600;font-size:clamp(1.9rem,3.4vw,2.7rem);line-height:1.12;margin-bottom:14px}
-.promo p{opacity:.92;margin-bottom:28px;max-width:30ch}
+.promo{display:grid;grid-template-columns:1fr 1.45fr;border-radius:32px;overflow:hidden;min-height:420px;box-shadow:var(--sombra)}
+.promo .l{background:var(--brasa);color:#fff;padding:54px 48px;display:flex;flex-direction:column;justify-content:center;position:relative;overflow:hidden}
+.promo .l::before{content:"";position:absolute;right:-70px;bottom:-70px;width:240px;height:240px;border-radius:50%;border:32px solid rgba(255,255,255,.06)}
+.promo h2{font-size:clamp(2rem,3.6vw,2.9rem);line-height:1.08;margin:12px 0 14px}
+.promo h2 em{color:var(--ouro)}
+.promo p{opacity:.92;margin-bottom:28px;max-width:32ch}
 .promo .r img{width:100%;height:100%;object-fit:cover}
 
 /* Produtos */
-.head-row{display:flex;justify-content:center;align-items:center;position:relative}
-.head-row a.all{position:absolute;right:0;top:8px;color:var(--brasa);font-size:.78rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+.head-row{position:relative}
+.head-row a.all{position:absolute;right:0;bottom:6px;color:var(--brasa);font-size:.78rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:9px 18px;border-radius:var(--pill);box-shadow:inset 0 0 0 1.5px var(--brasa);transition:.2s}
+.head-row a.all:hover{background:var(--brasa);color:#fff}
 .prods{display:grid;grid-template-columns:repeat(4,1fr);gap:22px}
-.card{background:#fff;border:1px solid var(--linha);border-radius:var(--raio);overflow:hidden;position:relative;transition:.3s;display:flex;flex-direction:column}
+.card{background:#fff;border:1px solid var(--linha);border-radius:24px;overflow:hidden;position:relative;transition:.3s;display:flex;flex-direction:column}
 .card:hover{box-shadow:var(--sombra);transform:translateY(-4px)}
-.card .ph{aspect-ratio:1/1.05;overflow:hidden;background:var(--areia)}
+.card .ph{aspect-ratio:4/5;overflow:hidden;background:var(--areia)}
 .card .ph img{width:100%;height:100%;object-fit:cover;transition:transform .6s}
 .card:hover .ph img{transform:scale(1.06)}
-.tag{position:absolute;left:12px;top:12px;background:var(--erva);color:#fff;font-size:.66rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border-radius:3px}
+.tag{position:absolute;left:12px;top:12px;background:var(--erva);color:#fff;font-size:.66rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:5px 12px;border-radius:var(--pill)}
 .tag.red{background:var(--brasa)}
-.heart{position:absolute;right:10px;top:10px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.92);display:grid;place-items:center;transition:.2s}
+.heart{position:absolute;right:12px;top:12px;width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.94);display:grid;place-items:center;transition:.2s}
 .heart svg{width:18px;height:18px;stroke:var(--carvao);fill:none;stroke-width:1.7;transition:.2s}
 .heart.on svg{fill:var(--brasa);stroke:var(--brasa)}
-.card .bd{padding:18px 18px 20px;text-align:center;display:flex;flex-direction:column;flex:1}
-.card h3{font-size:.95rem;font-weight:500;color:var(--carvao);line-height:1.35;min-height:2.6em}
-.price{margin:10px 0 4px;font-weight:700;color:var(--brasa);font-size:1.1rem}
-.price s{color:var(--suave);font-weight:400;font-size:.85rem;margin-right:6px}
-.stars{color:var(--ouro);font-size:.82rem;letter-spacing:2px;margin-bottom:14px}
-.stars em{font-style:normal;color:var(--suave);letter-spacing:0;margin-left:4px}
-.add{margin-top:auto;background:var(--brasa);color:#fff;padding:12px;font-size:.72rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;border-radius:3px;transition:.2s}
-.add:hover{background:var(--brasa-dark)}
+.card .bd{padding:18px 20px 22px;display:flex;flex-direction:column;flex:1}
+.card .ct{font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;color:var(--suave);font-weight:600}
+.card h3{font-size:1.12rem;line-height:1.25;color:var(--carvao);margin:4px 0 6px;min-height:2.5em}
+.stars{color:var(--ouro);font-size:.82rem;letter-spacing:2px;margin-bottom:10px}
+.stars em{font-style:normal;color:var(--suave);letter-spacing:0;margin-left:5px;font-size:.78rem}
+.price{font-family:var(--display);font-weight:600;color:var(--carvao);font-size:1.5rem;line-height:1.1;font-variant-numeric:tabular-nums}
+.price s{font-family:var(--sans);color:var(--suave);font-weight:400;font-size:.86rem;margin-right:8px}
+.pix{font-size:.82rem;color:var(--erva);font-weight:600;margin-top:4px}
+.parc{font-size:.8rem;color:var(--suave);margin-bottom:16px}
+.add{margin-top:auto;background:var(--brasa);color:#fff;padding:14px;font-size:.76rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;border-radius:var(--pill);transition:.2s}
+.add:hover{background:var(--brasa-dark);transform:translateY(-1px)}
 
-/* Raízes (galeria) */
-.raizes{background:var(--carvao);margin-top:72px;padding:76px 0 80px;color:#fff}
-.raizes .sec-t h2{color:#fff}
-.raizes .sec-t p{color:#c9bdb0}
+/* Kit */
+.kit{display:grid;grid-template-columns:1.3fr 1fr;gap:0;background:var(--areia);border-radius:32px;overflow:hidden}
+.kit .imgs{display:grid;grid-template-columns:repeat(3,1fr);gap:0;align-items:stretch}
+.kit .imgs img{width:100%;height:100%;object-fit:cover;min-height:320px}
+.kit .info{padding:48px 44px;display:flex;flex-direction:column;justify-content:center;gap:12px}
+.kit h2{font-size:clamp(1.8rem,3vw,2.5rem);line-height:1.08;color:var(--carvao)}
+.kit h2 em{color:var(--brasa)}
+.kit ul{list-style:none;color:var(--suave);font-size:.94rem}
+.kit li::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--brasa);margin-right:10px}
+.kit .tot{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:6px 0 8px}
+.kit .tot b{font-family:var(--display);font-size:2.1rem;color:var(--carvao);font-weight:600}
+.kit .tot s{color:var(--suave)}
+.kit .eco{background:var(--erva);color:#fff;font-size:.74rem;font-weight:600;letter-spacing:.06em;padding:5px 12px;border-radius:var(--pill)}
+
+/* Avaliações */
+.rev-head{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:14px;color:var(--suave)}
+.rev-head .st{color:var(--ouro);letter-spacing:3px}
+.revs{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+.rev{background:#fff;border:1px solid var(--linha);border-radius:24px;padding:28px}
+.rev .st{color:var(--ouro);letter-spacing:3px;margin-bottom:12px;font-size:.9rem}
+.rev p{font-family:var(--display);font-size:1.08rem;line-height:1.5;color:var(--carvao);margin-bottom:18px}
+.rev .who{display:flex;align-items:center;gap:12px;font-size:.84rem}
+.rev .av{width:38px;height:38px;border-radius:50%;background:var(--brasa);color:#fff;display:grid;place-items:center;font-weight:600}
+.rev .who b{display:block;color:var(--carvao)}
+.rev .who small{color:var(--suave)}
+.nota{text-align:center;color:var(--suave);font-size:.78rem;margin-top:16px}
+
+/* Raízes */
+.raizes{background:var(--carvao);margin-top:84px;padding:84px 0 88px;color:#fff}
+.raizes .sec-t h2{color:#fff}.raizes .sec-t h2 em{color:var(--ouro)}
+.raizes .sec-t .eyebrow{color:var(--ouro)}.raizes .sec-t p{color:#c9bdb0}
 .mosaic{display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:210px;gap:12px;grid-auto-flow:dense}
-.mosaic figure{position:relative;overflow:hidden;border-radius:8px;cursor:zoom-in;background:#2a231e}
+.mosaic figure{position:relative;overflow:hidden;border-radius:22px;cursor:zoom-in;background:#2a231e}
 .mosaic figure.w2{grid-column:span 2}.mosaic figure.h2{grid-row:span 2}
 .mosaic img{width:100%;height:100%;object-fit:cover;transition:transform .7s,filter .5s}
 .mosaic figure:hover img{transform:scale(1.07)}
-.mosaic figcaption{position:absolute;inset:auto 0 0 0;padding:34px 16px 14px;background:linear-gradient(transparent,rgba(0,0,0,.72));font-size:.82rem;letter-spacing:.04em;transform:translateY(100%);transition:.35s}
+.mosaic figcaption{position:absolute;inset:auto 0 0 0;padding:36px 18px 14px;background:linear-gradient(transparent,rgba(0,0,0,.72));font-family:var(--display);font-style:italic;font-size:1rem;transform:translateY(100%);transition:.35s}
 .mosaic figure:hover figcaption{transform:none}
-.bw img{filter:grayscale(1) contrast(1.05)}
-.bw:hover img{filter:none}
-.raizes .cta{text-align:center;margin-top:38px}
+.bw img{filter:grayscale(1) contrast(1.05)}.bw:hover img{filter:none}
+.raizes .cta{text-align:center;margin-top:40px}
+
+/* Faixa de e-mail */
+.clube{position:relative;overflow:hidden;color:#fff}
+.clube>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.clube::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(18,12,8,.88),rgba(18,12,8,.35))}
+.clube .wrap{position:relative;z-index:2;padding:84px 0;display:grid;grid-template-columns:1.1fr 1fr;gap:36px;align-items:center}
+.clube h2{font-size:clamp(2rem,4vw,3.1rem);line-height:1.06}.clube h2 em{color:var(--ouro)}
+.clube p{opacity:.9;margin-top:12px;max-width:40ch}
+.nl{display:flex;background:#fff;border-radius:var(--pill);padding:6px;max-width:480px}
+.nl input{flex:1;min-width:0;padding:12px 18px;border:0;font:inherit;border-radius:var(--pill);background:transparent;color:var(--carvao)}
+.nl input:focus{outline:none}
+.nl button{background:var(--brasa);color:#fff;padding:0 24px;font-size:.76rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;border-radius:var(--pill)}
+.nl button:hover{background:var(--brasa-dark)}
+.clube small{display:block;margin-top:12px;opacity:.75}
 
 /* Benefícios */
-.benef{margin-top:0;background:#f3e5e5;border-block:1px solid #ead2d2}
-.benef .wrap{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:26px 0}
+.benef{background:#f3e5e5;border-bottom:1px solid #ead2d2}
+.benef .wrap{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:28px 0}
 .benef .it{display:flex;gap:14px;align-items:center;justify-content:center}
-.benef svg{width:34px;height:34px;stroke:var(--brasa);fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
-.benef b{display:block;font-size:.84rem;color:var(--carvao)}
-.benef small{color:var(--suave);font-size:.78rem}
+.benef svg{width:34px;height:34px;stroke:var(--brasa);fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.benef b{display:block;font-size:.9rem;color:var(--carvao)}
+.benef small{color:var(--suave);font-size:.8rem}
 
 /* Rodapé */
-footer{background:#3b1414;color:#e8dcd0;padding:56px 0 24px;font-size:.88rem}
-.fgrid{display:grid;grid-template-columns:1.4fr 1fr 1fr 1.5fr;gap:36px}
+footer{background:#3b1414;color:#e8dcd0;padding:60px 0 24px;font-size:.9rem}
+.fgrid{display:grid;grid-template-columns:1.4fr 1fr 1fr 1.2fr;gap:36px}
 footer .logo .n1{color:#fff}footer .logo .n2{color:var(--ouro)}
 footer p.sb{margin:14px 0 18px;max-width:30ch;color:#cdbdb0}
-footer h4{font-size:.78rem;letter-spacing:.18em;text-transform:uppercase;color:#fff;margin-bottom:16px}
+footer h4{font-size:.74rem;letter-spacing:.18em;text-transform:uppercase;color:#fff;margin-bottom:16px;font-weight:600}
 footer li{list-style:none;margin-bottom:9px}footer li a{color:#cdbdb0}footer li a:hover{color:#fff}
-.soc2{display:flex;gap:14px}.soc2 svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:1.6}
-.nl{display:flex;margin-top:12px}
-.nl input{flex:1;min-width:0;padding:13px 14px;border:0;font:inherit;border-radius:3px 0 0 3px}
-.nl button{background:var(--brasa);color:#fff;padding:0 20px;font-size:.72rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;border-radius:0 3px 3px 0}
-.nl button:hover{background:#a52424}
-.pay{display:flex;gap:8px;margin-top:18px;flex-wrap:wrap}
-.pay span{border:1px solid rgba(255,255,255,.3);border-radius:4px;padding:4px 10px;font-size:.7rem;font-weight:700;letter-spacing:.08em}
+.soc2{display:flex;gap:12px}.soc2 span{width:38px;height:38px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(255,255,255,.3);display:grid;place-items:center}
+.soc2 svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:1.6}
+.pay{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.pay span{box-shadow:inset 0 0 0 1px rgba(255,255,255,.3);border-radius:var(--pill);padding:5px 14px;font-size:.7rem;font-weight:600;letter-spacing:.08em}
 .copy{border-top:1px solid rgba(255,255,255,.14);margin-top:38px;padding-top:20px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:.78rem;color:#b8a89a}
 .copy a{text-decoration:underline}
 
-/* Lightbox e toast */
+/* Botão WhatsApp, lightbox, toast */
+.zap{position:fixed;right:16px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:70;display:flex;align-items:center;gap:10px;background:#1f8f4e;color:#fff;padding:13px 20px 13px 16px;border-radius:var(--pill);font-size:.84rem;font-weight:600;box-shadow:0 10px 26px rgba(0,0,0,.25);transition:transform .2s}
+.zap:hover{transform:translateY(-2px)}
+.zap svg{width:22px;height:22px;stroke:#fff;fill:none;stroke-width:1.8}
 .lb{position:fixed;inset:0;background:rgba(10,7,5,.92);z-index:100;display:none;place-items:center;padding:24px}
 .lb.on{display:grid}
-.lb img{max-height:86vh;max-width:min(1200px,94vw);object-fit:contain;border-radius:6px}
-.lb p{color:#e8dcd0;text-align:center;margin-top:12px;font-size:.9rem}
-.lb .x{position:absolute;top:18px;right:22px;color:#fff;font-size:2rem;line-height:1}
-.toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,30px);background:var(--carvao);color:#fff;padding:12px 22px;border-radius:30px;font-size:.88rem;opacity:0;transition:.35s;z-index:120;pointer-events:none;box-shadow:var(--sombra)}
+.lb img{max-height:86vh;max-width:min(1200px,94vw);object-fit:contain;border-radius:14px}
+.lb p{color:#e8dcd0;text-align:center;margin-top:12px;font-family:var(--display);font-style:italic}
+.lb .x{position:absolute;top:18px;right:22px;color:#fff;font-size:2rem;line-height:1;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.12)}
+.toast{position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom,0px));transform:translate(-50%,30px);background:var(--carvao);color:#fff;padding:13px 24px;border-radius:var(--pill);font-size:.9rem;opacity:0;transition:.35s;z-index:120;pointer-events:none;box-shadow:var(--sombra);max-width:calc(100% - 32px);text-align:center}
 .toast.on{opacity:1;transform:translate(-50%,0)}
+.toast i{display:block;height:4px;border-radius:2px;background:rgba(255,255,255,.2);margin-top:8px;overflow:hidden}
+.toast i b{display:block;height:100%;background:var(--ouro);border-radius:2px;transition:width .4s}
 
-/* Reveal */
-.rv{opacity:0;transform:translateY(26px);transition:opacity .8s,transform .8s}
-.rv.in{opacity:1;transform:none}
-@media (prefers-reduced-motion:reduce){.rv{opacity:1;transform:none;transition:none}.slide img{transition:none}html{scroll-behavior:auto}}
+/* Animação ao rolar: só esconde o que está abaixo da primeira tela */
+.rv.pre{opacity:0;transform:translateY(26px)}
+.rv{transition:opacity .8s,transform .8s}
+@media (prefers-reduced-motion:reduce){.rv,.rv.pre{opacity:1;transform:none;transition:none}.slide img{transition:none}html{scroll-behavior:auto}}
 
 /* Responsivo */
 @media (max-width:1020px){
   nav.main{display:none}
-  nav.main.open{display:flex;position:absolute;top:78px;left:0;right:0;background:var(--creme);flex-direction:column;gap:0;padding:8px 16px 16px;border-bottom:1px solid var(--linha);box-shadow:var(--sombra)}
-  nav.main.open a{padding:14px 0;border-bottom:1px solid var(--linha)}
+  nav.main.open{display:flex;position:absolute;top:80px;left:0;right:0;background:var(--creme);flex-direction:column;gap:2px;padding:10px 16px 18px;border-bottom:1px solid var(--linha);box-shadow:var(--sombra)}
+  nav.main.open a{padding:14px 18px}
   .icons .burger{display:grid}
   .cats{grid-template-columns:repeat(3,1fr)}
   .prods{grid-template-columns:repeat(2,1fr)}
   .trust .box{grid-template-columns:repeat(2,1fr);row-gap:16px}
   .trust .it:nth-child(2){border:0}
-  .promo{grid-template-columns:1fr}.promo .r{height:300px}
+  .promo,.kit,.clube .wrap{grid-template-columns:1fr}
+  .promo .r{height:320px}
+  .kit .imgs img{min-height:240px}
+  .revs{grid-template-columns:1fr}
   .mosaic{grid-template-columns:repeat(2,1fr)}
   .benef .wrap{grid-template-columns:repeat(2,1fr);row-gap:20px}
   .fgrid{grid-template-columns:1fr 1fr}
 }
 @media (max-width:600px){
-  header.site .wrap{gap:10px}.icons{gap:2px}.icons button{width:32px}.logo .n1{font-size:1.15rem}.logo svg{width:32px;height:32px}
+  header.site .wrap{gap:10px}.icons{gap:0}.icons button{width:36px}.logo .n1{font-size:1.15rem}.logo svg{width:32px;height:32px}
   .topbar .soc{display:none}.topbar .wrap{justify-content:center;text-align:center}
   .arrow{display:none}
-  .slide::after{background:linear-gradient(0deg,rgba(20,14,10,.85) 10%,rgba(20,14,10,.15) 80%)}
-  .slide .txt{justify-content:flex-end;padding-bottom:64px}
+  .hero{height:clamp(560px,86vh,680px)}
+  .slide:nth-child(1) img{object-position:82% 12%!important}.slide:nth-child(2) img{object-position:62% 30%!important}
+  .slide .in{max-width:100%}
+  .slide::after{background:linear-gradient(0deg,rgba(18,12,8,.9) 8%,rgba(18,12,8,.2) 80%)}
+  .slide .txt{justify-content:flex-end;padding-bottom:78px}
+  .slide p.sub{font-size:1rem;margin-bottom:20px}
+  .proof{margin-top:18px;font-size:.78rem}
   .trust .box{grid-template-columns:1fr;padding:14px 6px}.trust .it{border:0;padding:8px 18px}
   .cats{grid-template-columns:repeat(2,1fr);gap:18px}
-  .prods{gap:12px}.card .bd{padding:14px 10px 14px}.card h3{font-size:.85rem}
+  .prods{gap:12px}.card .bd{padding:14px 12px 16px}.card h3{font-size:.98rem}.price{font-size:1.25rem}.add{font-size:.68rem;letter-spacing:.06em;padding:13px 6px}
   .mosaic{grid-auto-rows:170px;gap:8px}
   .head-row a.all{display:none}
   .fgrid{grid-template-columns:1fr}
-  .promo .l{padding:38px 26px}
+  .promo .l,.kit .info{padding:36px 26px}
+  .kit .imgs{grid-template-columns:repeat(3,1fr)}.kit .imgs img{min-height:150px}
+  .zap span{display:none}.zap{padding:14px}
 }
 </style>
 </head>
@@ -230,7 +306,7 @@ footer li{list-style:none;margin-bottom:9px}footer li a{color:#cdbdb0}footer li 
 
 <div class="topbar">
   <div class="wrap">
-    <div>🐎 Frete grátis acima de R$ 399 &nbsp;|&nbsp; Use o cupom <b>PAMPA10</b> e ganhe 10% off</div>
+    <div>Frete grátis acima de R$ 399 &nbsp;·&nbsp; <b>5% off no Pix</b> &nbsp;·&nbsp; 10x sem juros</div>
     <div class="soc"><a href="#">Instagram</a><a href="#">Facebook</a><a href="#">WhatsApp</a></div>
   </div>
 </div>
@@ -246,7 +322,7 @@ footer li{list-style:none;margin-bottom:9px}footer li a{color:#cdbdb0}footer li 
       <a href="#categorias">Loja</a>
       <a href="#mais-vendidos">Coleções</a>
       <a href="#raizes">Tradição</a>
-      <a href="#">Blog</a>
+      <a href="#avaliacoes">Avaliações</a>
       <a href="#rodape">Contato</a>
     </nav>
     <div class="icons">
@@ -261,30 +337,40 @@ footer li{list-style:none;margin-bottom:9px}footer li a{color:#cdbdb0}footer li 
 <!-- HERO -->
 <section class="hero" aria-roledescription="carrossel" aria-label="Destaques">
   <div class="slide on">
-    <img src="img/gaucha-rs.jpg" alt="Gaúchos de lenço vermelho com seus cavalos e cães no campo">
+    <img src="img/hero-camisa.jpg" alt="Cavaleira de chapéu e poncho listrado em vermelho sobre um cavalo palomino" style="object-position:50% 18%">
     <div class="txt"><div class="wrap"><div class="in">
-      <div class="eyebrow">Nova coleção · Campeira</div>
-      <h1>Tradição que se veste.</h1>
-      <p>Couro, lã e orgulho do Rio Grande. Peças feitas para o campo, a festa e o dia a dia.</p>
-      <a href="#categorias" class="btn">Comprar agora</a>
+      <div class="eyebrow">Coleção Campeira 2026</div>
+      <h1>Vista a <em>tradição</em> do jeito certo.</h1>
+      <p class="sub">Ponchos, botas e guaiacas em couro e lã legítimos, feitos por artesãos gaúchos.</p>
+      <div class="cta-row">
+        <a href="#mais-vendidos" class="btn">Quero vestir <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        <a href="#categorias" class="btn ghost">Ver categorias</a>
+      </div>
+      <div class="proof"><span><span class="st">★★★★★</span> 4,9 de 5</span><span>Pix com 5% off</span><span>Troca grátis em 30 dias</span></div>
+    </div></div></div>
+  </div>
+  <div class="slide">
+    <img src="img/hero-cavaleiro.jpg" alt="Cavaleiro de perneiras de couro franjadas em contraluz, ao pôr do sol" style="object-position:50% 30%">
+    <div class="txt"><div class="wrap"><div class="in">
+      <div class="eyebrow">Couro de verdade</div>
+      <h1>Feito para a <em>lida</em>, bonito para a festa.</h1>
+      <p class="sub">Botas, cintos e guaiacas que ficam melhores a cada uso.</p>
+      <div class="cta-row">
+        <a href="#mais-vendidos" class="btn">Ver mais vendidos <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+      </div>
+      <div class="proof"><span>10x sem juros</span><span>Frete grátis acima de R$ 399</span></div>
     </div></div></div>
   </div>
   <div class="slide">
     <img src="img/pampa-branco.jpg" alt="Cavaleiro de chapéu em cavalo branco ao pôr do sol nas coxilhas">
     <div class="txt"><div class="wrap"><div class="in">
-      <div class="eyebrow">Botas &amp; acessórios</div>
-      <h1>Do galpão<br>à coxilha.</h1>
-      <p>Botas de couro trabalhado, cintos e guaiacas que acompanham você em cada lida.</p>
-      <a href="#mais-vendidos" class="btn">Ver mais vendidos</a>
-    </div></div></div>
-  </div>
-  <div class="slide">
-    <img src="img/gaucho-estancia.jpg" alt="Gaúcho de boina preparando o cavalo na estância sob céu azul">
-    <div class="txt"><div class="wrap"><div class="in">
       <div class="eyebrow">Semana Farroupilha</div>
-      <h1>Pilchas para<br>20 de setembro.</h1>
-      <p>Bombachas, boinas, lenços e ponchos para vestir a tradição do começo ao fim.</p>
-      <a href="#promo" class="btn">Ver ofertas</a>
+      <h1>Pilchas para o <em>20 de setembro</em>.</h1>
+      <p class="sub">Bombachas, boinas, lenços e ponchos para vestir a festa do começo ao fim.</p>
+      <div class="cta-row">
+        <a href="#promo" class="btn">Ver ofertas <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+      </div>
+      <div class="proof"><span>Até 30% off em ponchos e pelegos</span></div>
     </div></div></div>
   </div>
   <button class="arrow prev" aria-label="Slide anterior"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
@@ -296,19 +382,19 @@ footer li{list-style:none;margin-bottom:9px}footer li a{color:#cdbdb0}footer li 
 <div class="wrap trust"><div class="box">
   <div class="it"><svg viewBox="0 0 40 40"><path d="M8 28c0-10 8-18 24-18 0 14-8 22-18 22"/><path d="M8 32c6-8 12-12 18-14"/></svg><div><b>Couro legítimo</b><small>Curtido de forma responsável</small></div></div>
   <div class="it"><svg viewBox="0 0 40 40"><path d="M20 6l3 9h9l-7 5 3 9-8-6-8 6 3-9-7-5h9z"/></svg><div><b>Feito no RS</b><small>Artesãos gaúchos</small></div></div>
-  <div class="it"><svg viewBox="0 0 40 40"><path d="M6 20a14 14 0 0126-6"/><path d="M34 20a14 14 0 01-26 6"/><path d="M30 8v7h-7M10 32v-7h7"/></svg><div><b>Troca em 30 dias</b><small>Primeira troca é por nossa conta</small></div></div>
+  <div class="it"><svg viewBox="0 0 40 40"><path d="M6 20a14 14 0 0126-6"/><path d="M34 20a14 14 0 01-26 6"/><path d="M30 8v7h-7M10 32v-7h7"/></svg><div><b>Troca em 30 dias</b><small>A primeira troca é por nossa conta</small></div></div>
   <div class="it"><svg viewBox="0 0 40 40"><rect x="5" y="11" width="30" height="20" rx="3"/><path d="M5 18h30M11 25h7"/></svg><div><b>Pix ou 10x sem juros</b><small>Compra 100% segura</small></div></div>
 </div></div>
 
 <!-- CATEGORIAS -->
 <section class="blk wrap" id="categorias">
-  <div class="sec-t"><h2>Compre por categoria</h2></div>
+  <div class="sec-t"><span class="eyebrow">Loja</span><h2>Compre por <em>categoria</em></h2></div>
   <div class="cats">
-    <a href="#" class="cat rv"><div class="ov"><img loading="lazy" src="img/homem-chapeu.jpg" alt="Gaúcho de camisa e lenço vermelho tomando chimarrão" style="object-position:50% 40%"></div><span>Bombachas &amp; Camisas</span></a>
-    <a href="#" class="cat rv"><div class="ov"><img loading="lazy" src="img/gaucho-boina.jpg" alt="Gaúcho de boina a cavalo" style="object-position:70% 20%"></div><span>Boinas &amp; Chapéus</span></a>
-    <a href="#" class="cat rv"><div class="ov"><img loading="lazy" src="img/botas-piton.jpg" alt="Par de botas de couro trabalhado" ></div><span>Botas</span></a>
-    <a href="#" class="cat rv"><div class="ov"><img loading="lazy" src="img/cinto-madeira.jpg" alt="Cinto de couro com fivela"></div><span>Cintos &amp; Guaiacas</span></a>
-    <a href="#" class="cat rv"><div class="ov"><img loading="lazy" src="img/poncho-azul.jpg" alt="Mulher vestindo poncho de lã xadrez azul" style="object-position:50% 30%"></div><span>Ponchos &amp; Pelegos</span></a>
+    <a href="#" class="cat rv"><div class="ov"><img loading="lazy" src="img/homem-chapeu.jpg" alt="Gaúcho de boina e lenço vermelho tomando chimarrão" style="object-position:50% 40%"></div><span>Bombachas e camisas</span></a>
+    <a href="#" class="cat rv"><div class="ov"><img loading="lazy" src="img/gaucho-boina.jpg" alt="Gaúcho de boina a cavalo" style="object-position:70% 20%"></div><span>Boinas e chapéus</span></a>
+    <a href="#" class="cat rv"><div class="ov"><img loading="lazy" src="img/botas-piton.jpg" alt="Par de botas de couro trabalhado"></div><span>Botas</span></a>
+    <a href="#" class="cat rv"><div class="ov"><img loading="lazy" src="img/cinto-madeira.jpg" alt="Cinto de couro com fivela"></div><span>Cintos e guaiacas</span></a>
+    <a href="#" class="cat rv"><div class="ov"><img loading="lazy" src="img/poncho-azul.jpg" alt="Mulher vestindo poncho de lã xadrez azul" style="object-position:50% 30%"></div><span>Ponchos e pelegos</span></a>
     <a href="#" class="cat rv"><div class="ov"><img loading="lazy" src="img/mate-yerba.jpg" alt="Cuia de chimarrão com bomba de metal"></div><span>Chimarrão</span></a>
   </div>
 </section>
@@ -318,9 +404,9 @@ footer li{list-style:none;margin-bottom:9px}footer li a{color:#cdbdb0}footer li 
   <div class="promo rv">
     <div class="l">
       <div class="eyebrow">Oferta por tempo limitado</div>
-      <h2>Até 30% off em ponchos e pelegos</h2>
+      <h2>Até <em>30% off</em> em ponchos e pelegos</h2>
       <p>Aqueça o inverno do jeito gaúcho. Lã grossa, caimento perfeito.</p>
-      <div><a href="#" class="btn light">Ver a oferta</a></div>
+      <div><a href="#mais-vendidos" class="btn light">Aproveitar agora <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>
     </div>
     <div class="r"><img loading="lazy" src="img/cavalo-corda.jpg" alt="Pelego e manta de tear sobre o cavalo"></div>
   </div>
@@ -328,38 +414,68 @@ footer li{list-style:none;margin-bottom:9px}footer li a{color:#cdbdb0}footer li 
 
 <!-- MAIS VENDIDOS -->
 <section class="blk wrap" id="mais-vendidos">
-  <div class="sec-t head-row"><h2>Mais vendidos</h2><a href="#" class="all">Ver todos</a></div>
+  <div class="sec-t head-row"><span class="eyebrow">Queridinhos</span><h2>Os mais <em>vendidos</em></h2><a href="#" class="all">Ver todos</a></div>
   <div class="prods">
     <article class="card rv">
       <span class="tag red">-15%</span>
       <button class="heart" aria-label="Favoritar"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-9-9a5 5 0 019-3 5 5 0 019 3c-2 4.6-9 9-9 9z"/></svg></button>
       <div class="ph"><img loading="lazy" src="img/botas-piton.jpg" alt="Botas campeiras de couro trabalhado"></div>
-      <div class="bd"><h3>Botas Campeiras<br>Couro Trabalhado</h3><div class="price"><s>R$ 576,00</s>R$ 489,90</div><div class="stars">★★★★★<em>(124)</em></div><button class="add">Adicionar ao carrinho</button></div>
+      <div class="bd"><span class="ct">Botas</span><h3>Bota Campeira Couro Trabalhado</h3><div class="stars">★★★★★<em>4,9 (124)</em></div><div class="price"><s>R$ 576,00</s>R$ 489,90</div><div class="pix">R$ 465,41 no Pix</div><div class="parc">ou 10x de R$ 48,99 sem juros</div><button class="add" data-price="489.90">Adicionar ao carrinho</button></div>
     </article>
     <article class="card rv">
       <button class="heart" aria-label="Favoritar"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-9-9a5 5 0 019-3 5 5 0 019 3c-2 4.6-9 9-9 9z"/></svg></button>
-      <div class="ph"><img loading="lazy" src="img/cinto-fivela.jpg" alt="Guaiaca de couro legítimo com fivela prateada"></div>
-      <div class="bd"><h3>Guaiaca Couro Legítimo<br>Fivela Prata</h3><div class="price">R$ 189,90</div><div class="stars">★★★★★<em>(201)</em></div><button class="add">Adicionar ao carrinho</button></div>
+      <div class="ph"><img loading="lazy" src="img/cinto-fivela.jpg" alt="Guaiaca de couro legítimo com fivela prateada" style="object-position:40% 50%"></div>
+      <div class="bd"><span class="ct">Cintos e guaiacas</span><h3>Guaiaca Couro Legítimo Fivela Prata</h3><div class="stars">★★★★★<em>4,9 (201)</em></div><div class="price">R$ 189,90</div><div class="pix">R$ 180,41 no Pix</div><div class="parc">ou 10x de R$ 18,99 sem juros</div><button class="add" data-price="189.90">Adicionar ao carrinho</button></div>
     </article>
     <article class="card rv">
       <span class="tag">Mais amado</span>
       <button class="heart" aria-label="Favoritar"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-9-9a5 5 0 019-3 5 5 0 019 3c-2 4.6-9 9-9 9z"/></svg></button>
       <div class="ph"><img loading="lazy" src="img/mate-yerba.jpg" alt="Cuia de chimarrão com bomba inox"></div>
-      <div class="bd"><h3>Cuia de Chimarrão<br>com Bomba Inox</h3><div class="price">R$ 129,90</div><div class="stars">★★★★★<em>(387)</em></div><button class="add">Adicionar ao carrinho</button></div>
+      <div class="bd"><span class="ct">Chimarrão</span><h3>Cuia de Chimarrão com Bomba Inox</h3><div class="stars">★★★★★<em>5,0 (387)</em></div><div class="price">R$ 129,90</div><div class="pix">R$ 123,41 no Pix</div><div class="parc">ou 10x de R$ 12,99 sem juros</div><button class="add" data-price="129.90">Adicionar ao carrinho</button></div>
     </article>
     <article class="card rv">
       <span class="tag red">-20%</span>
       <button class="heart" aria-label="Favoritar"><svg viewBox="0 0 24 24"><path d="M12 20s-7-4.4-9-9a5 5 0 019-3 5 5 0 019 3c-2 4.6-9 9-9 9z"/></svg></button>
       <div class="ph"><img loading="lazy" src="img/poncho-croche.jpg" alt="Poncho de lã com franjas"></div>
-      <div class="bd"><h3>Poncho de Lã<br>com Franjas</h3><div class="price"><s>R$ 437,00</s>R$ 349,90</div><div class="stars">★★★★☆<em>(96)</em></div><button class="add">Adicionar ao carrinho</button></div>
+      <div class="bd"><span class="ct">Ponchos e pelegos</span><h3>Poncho de Lã com Franjas</h3><div class="stars">★★★★☆<em>4,7 (96)</em></div><div class="price"><s>R$ 437,00</s>R$ 349,90</div><div class="pix">R$ 332,41 no Pix</div><div class="parc">ou 10x de R$ 34,99 sem juros</div><button class="add" data-price="349.90">Adicionar ao carrinho</button></div>
     </article>
   </div>
+</section>
+
+<!-- KIT -->
+<section class="blk wrap" id="kit">
+  <div class="kit rv">
+    <div class="imgs">
+      <img loading="lazy" src="img/botas-piton.jpg" alt="Bota campeira">
+      <img loading="lazy" src="img/cinto-fivela.jpg" alt="Guaiaca de couro" style="object-position:40% 50%">
+      <img loading="lazy" src="img/mate-yerba.jpg" alt="Cuia de chimarrão">
+    </div>
+    <div class="info">
+      <span class="eyebrow" style="color:var(--brasa)">Monte o look</span>
+      <h2>Kit <em>Campeiro</em> completo</h2>
+      <ul><li>Bota Campeira Couro Trabalhado</li><li>Guaiaca Couro Legítimo Fivela Prata</li><li>Cuia de Chimarrão com Bomba Inox</li></ul>
+      <div class="tot"><b>R$ 688,25</b><s>R$ 809,70</s><span class="eco">Economize R$ 121,45</span></div>
+      <div><button class="btn add-kit" data-price="688.25">Adicionar o kit <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></div>
+    </div>
+  </div>
+</section>
+
+<!-- AVALIAÇÕES -->
+<section class="blk wrap" id="avaliacoes">
+  <div class="sec-t"><span class="eyebrow">Quem comprou, aprovou</span><h2>O que dizem os <em>clientes</em></h2>
+    <div class="rev-head"><span class="st">★★★★★</span><span>4,9 de 5 · 2.318 avaliações</span></div></div>
+  <div class="revs">
+    <div class="rev rv"><div class="st">★★★★★</div><p>A guaiaca chegou rápido e o couro é de verdade. Já pedi a segunda para o meu pai.</p><div class="who"><span class="av">M</span><div><b>Marcos T.</b><small>Santa Maria, RS · Compra verificada</small></div></div></div>
+    <div class="rev rv"><div class="st">★★★★★</div><p>A cuia veio muito bem embalada e curou certinho. A entrega levou só três dias.</p><div class="who"><span class="av">F</span><div><b>Fernanda L.</b><small>Porto Alegre, RS · Compra verificada</small></div></div></div>
+    <div class="rev rv"><div class="st">★★★★★</div><p>Usei a bota o dia inteiro na Semana Farroupilha e nenhuma bolha. Recomendo demais.</p><div class="who"><span class="av">R</span><div><b>Rafael A.</b><small>Pelotas, RS · Compra verificada</small></div></div></div>
+  </div>
+  <p class="nota">Depoimentos e notas de exemplo, para ilustrar o layout.</p>
 </section>
 
 <!-- RAÍZES -->
 <section class="raizes" id="raizes">
   <div class="wrap">
-    <div class="sec-t"><h2>Raízes</h2><p>Do campo aos CTGs: a gente veste quem faz a tradição acontecer.</p></div>
+    <div class="sec-t"><span class="eyebrow">Tradição</span><h2>Nossas <em>raízes</em></h2><p>Do campo aos CTGs: a gente veste quem faz a tradição acontecer.</p></div>
     <div class="mosaic">
       <figure class="w2 h2 rv bw" data-cap="Fandango no CTG"><img loading="lazy" src="img/garment.jpg" alt="Dança tradicional gaúcha em preto e branco, prendas e peões"><figcaption>Fandango no CTG</figcaption></figure>
       <figure class="rv" data-cap="Cuia, erva e prosa"><img loading="lazy" src="img/mate-joselo.jpg" alt="Gaúcho de boina tomando chimarrão na cozinha da estância"><figcaption>Cuia, erva e prosa</figcaption></figure>
@@ -372,7 +488,16 @@ footer li{list-style:none;margin-bottom:9px}footer li a{color:#cdbdb0}footer li 
       <figure class="w2 rv" data-cap="Campo de ouro"><img loading="lazy" src="img/pampa-preto.jpg" alt="Cavaleiro em campo dourado ao entardecer"><figcaption>Campo de ouro</figcaption></figure>
       <figure class="rv bw" data-cap="Dia de festa"><img loading="lazy" src="img/grupo-roupas.jpg" alt="Festa tradicional com gente de pilcha"><figcaption>Dia de festa</figcaption></figure>
     </div>
-    <div class="cta"><a href="#categorias" class="btn">Vista a tradição</a></div>
+    <div class="cta"><a href="#categorias" class="btn">Vista a tradição <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>
+  </div>
+</section>
+
+<!-- CLUBE -->
+<section class="clube">
+  <img loading="lazy" src="img/hero-silhueta.jpg" alt="" aria-hidden="true">
+  <div class="wrap">
+    <div><h2>Ganhe <em>10% off</em> na primeira compra.</h2><p>Entre para o Clube Querência e receba ofertas, lançamentos e dicas de quem entende de tradição.</p></div>
+    <div><form class="nl" id="nl"><label for="em" style="position:absolute;left:-9999px">E-mail</label><input id="em" type="email" placeholder="Seu melhor e-mail" required><button>Quero o cupom</button></form><small>Sem spam. Cancele quando quiser.</small></div>
   </div>
 </section>
 
@@ -388,37 +513,36 @@ footer li{list-style:none;margin-bottom:9px}footer li a{color:#cdbdb0}footer li 
   <div class="wrap">
     <div class="fgrid">
       <div>
-        <div class="logo"><svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="18.5" fill="none" stroke="#c9a24b" stroke-width="1.5"/><path d="M20 6l3.2 9.2h9.6l-7.8 5.7 3 9.3-8-5.8-8 5.8 3-9.3-7.8-5.7h9.6z" fill="#c9a24b"/></svg><div><span class="n1">QUERÊNCIA</span><span class="n2">GAÚCHA</span></div></div>
+        <div class="logo"><svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="18.5" fill="none" stroke="#d9b35a" stroke-width="1.5"/><path d="M20 6l3.2 9.2h9.6l-7.8 5.7 3 9.3-8-5.8-8 5.8 3-9.3-7.8-5.7h9.6z" fill="#d9b35a"/></svg><div><span class="n1">QUERÊNCIA</span><span class="n2">GAÚCHA</span></div></div>
         <p class="sb">Tradição que se veste. Pilchas e acessórios para quem tem o pampa no coração.</p>
         <div class="soc2">
-          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/></svg>
-          <svg viewBox="0 0 24 24"><path d="M14 8h3V4h-3a4 4 0 00-4 4v3H7v4h3v6h4v-6h3l1-4h-4V8z"/></svg>
-          <svg viewBox="0 0 24 24"><path d="M3 21l1.6-5A8.5 8.5 0 1112 20.5a8.5 8.5 0 01-4.3-1.2z"/></svg>
+          <span><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/></svg></span>
+          <span><svg viewBox="0 0 24 24"><path d="M14 8h3V4h-3a4 4 0 00-4 4v3H7v4h3v6h4v-6h3l1-4h-4V8z"/></svg></span>
+          <span><svg viewBox="0 0 24 24"><path d="M3 21l1.6-5A8.5 8.5 0 1112 20.5a8.5 8.5 0 01-4.3-1.2z"/></svg></span>
         </div>
       </div>
-      <div><h4>Links rápidos</h4><ul><li><a href="#">Início</a></li><li><a href="#categorias">Loja</a></li><li><a href="#mais-vendidos">Coleções</a></li><li><a href="#raizes">Tradição</a></li><li><a href="#">Blog</a></li><li><a href="#">Contato</a></li></ul></div>
-      <div><h4>Atendimento</h4><ul><li><a href="#">Rastrear pedido</a></li><li><a href="#">Política de envio</a></li><li><a href="#">Trocas e devoluções</a></li><li><a href="#">Termos de uso</a></li><li><a href="#">Privacidade</a></li><li><a href="#">Perguntas frequentes</a></li></ul></div>
-      <div>
-        <h4>Newsletter</h4>
-        <p>Receba ofertas e novidades direto do pampa.</p>
-        <form class="nl" id="nl"><input type="email" placeholder="Seu melhor e-mail" aria-label="E-mail" required><button>Assinar</button></form>
-        <div class="pay"><span>PIX</span><span>VISA</span><span>MASTERCARD</span><span>ELO</span></div>
-      </div>
+      <div><h4>Links rápidos</h4><ul><li><a href="#">Início</a></li><li><a href="#categorias">Loja</a></li><li><a href="#mais-vendidos">Coleções</a></li><li><a href="#raizes">Tradição</a></li><li><a href="#avaliacoes">Avaliações</a></li></ul></div>
+      <div><h4>Atendimento</h4><ul><li><a href="#">Rastrear pedido</a></li><li><a href="#">Política de envio</a></li><li><a href="#">Trocas e devoluções</a></li><li><a href="#">Termos de uso</a></li><li><a href="#">Privacidade</a></li></ul></div>
+      <div><h4>Formas de pagamento</h4><div class="pay"><span>PIX</span><span>VISA</span><span>MASTERCARD</span><span>ELO</span></div></div>
     </div>
-    <div class="copy"><span>© 2026 Querência Gaúcha. Todos os direitos reservados.</span><span>Fotos provisórias do <a href="https://unsplash.com" target="_blank" rel="noopener">Unsplash</a> · <a href="CREDITOS-FOTOS.md">créditos</a></span></div>
+    <div class="copy"><span>© 2026 Querência Gaúcha. Todos os direitos reservados.</span><span>Fotos provisórias do <a href="https://unsplash.com" target="_blank" rel="noopener">Unsplash</a> · créditos no repositório</span></div>
   </div>
 </footer>
 
+<a href="#" class="zap" aria-label="Falar no WhatsApp"><svg viewBox="0 0 24 24"><path d="M3 21l1.6-5A8.5 8.5 0 1112 20.5a8.5 8.5 0 01-4.3-1.2z"/><path d="M9 9c0 3 3 6 6 6l1-2-2-1-1 .7c-.9-.4-1.6-1.1-2-2l.7-1-1-2z"/></svg><span>Fale com a gente</span></a>
 <div class="lb" id="lb" role="dialog" aria-modal="true" aria-label="Foto ampliada"><button class="x" aria-label="Fechar">&times;</button><div><img alt=""><p></p></div></div>
 <div class="toast" id="toast" role="status"></div>
 
 <script>
 (function(){
+  var FRETE=399;
+  var brl=function(v){return 'R$ '+v.toFixed(2).replace('.',',').replace(/\B(?=(\d{3})+(?!\d))/g,'.')};
+
   // Slider
   var slides=[].slice.call(document.querySelectorAll('.slide')),dotsEl=document.getElementById('dots'),i=0,timer;
   slides.forEach(function(_,n){var b=document.createElement('button');b.setAttribute('aria-label','Slide '+(n+1));b.onclick=function(){go(n)};dotsEl.appendChild(b)});
   function go(n){slides[i].classList.remove('on');dotsEl.children[i].classList.remove('on');i=(n+slides.length)%slides.length;slides[i].classList.add('on');dotsEl.children[i].classList.add('on');restart()}
-  function restart(){clearInterval(timer);if(!matchMedia('(prefers-reduced-motion:reduce)').matches)timer=setInterval(function(){go(i+1)},6500)}
+  function restart(){clearInterval(timer);if(!matchMedia('(prefers-reduced-motion:reduce)').matches)timer=setInterval(function(){go(i+1)},7000)}
   document.querySelector('.arrow.prev').onclick=function(){go(i-1)};
   document.querySelector('.arrow.next').onclick=function(){go(i+1)};
   dotsEl.children[0].classList.add('on');restart();
@@ -430,14 +554,22 @@ footer li{list-style:none;margin-bottom:9px}footer li a{color:#cdbdb0}footer li 
 
   // Toast
   var toast=document.getElementById('toast'),tt;
-  function say(m){toast.textContent=m;toast.classList.add('on');clearTimeout(tt);tt=setTimeout(function(){toast.classList.remove('on')},2200)}
+  function say(html){toast.innerHTML=html;toast.classList.add('on');clearTimeout(tt);tt=setTimeout(function(){toast.classList.remove('on')},3200)}
 
-  // Carrinho e favoritos
-  var n=0,cartN=document.getElementById('cartN');
-  document.querySelectorAll('.add').forEach(function(b){b.onclick=function(){n++;cartN.textContent=n;say('Adicionado ao carrinho ✓')}});
+  // Carrinho com barra de frete grátis
+  var n=0,total=0,cartN=document.getElementById('cartN');
+  function addToCart(p,label){
+    n++;total+=p;cartN.textContent=n;
+    var falta=FRETE-total,pct=Math.min(100,Math.round(total/FRETE*100));
+    var msg=falta>0?'Faltam '+brl(falta)+' para o frete grátis':'Frete grátis desbloqueado!';
+    say('<span>'+label+' adicionado</span><br><span style="opacity:.85;font-size:.82rem">'+msg+'</span><i><b style="width:'+pct+'%"></b></i>');
+  }
+  document.querySelectorAll('.add').forEach(function(b){b.onclick=function(){addToCart(parseFloat(b.dataset.price),'Produto')}});
+  document.querySelector('.add-kit').onclick=function(){addToCart(parseFloat(this.dataset.price),'Kit Campeiro')};
   document.querySelectorAll('.heart').forEach(function(h){h.onclick=function(){h.classList.toggle('on');say(h.classList.contains('on')?'Salvo nos favoritos':'Removido dos favoritos')}});
-  document.getElementById('cartBtn').onclick=function(){say(n?n+' item(ns) no carrinho':'Seu carrinho está vazio')};
-  document.getElementById('nl').onsubmit=function(e){e.preventDefault();e.target.reset();say('Obrigado! Você está na lista 🐎')};
+  document.getElementById('cartBtn').onclick=function(){say(n?n+' item(ns) · '+brl(total):'Seu carrinho está vazio')};
+  document.getElementById('nl').onsubmit=function(e){e.preventDefault();e.target.reset();say('Pronto! O cupom chega no seu e-mail.')};
+  document.querySelector('.zap').onclick=function(e){e.preventDefault();say('Atendimento no WhatsApp: demonstração do botão.')};
 
   // Lightbox
   var lb=document.getElementById('lb'),lbi=lb.querySelector('img'),lbp=lb.querySelector('p');
@@ -445,12 +577,12 @@ footer li{list-style:none;margin-bottom:9px}footer li a{color:#cdbdb0}footer li 
   lb.onclick=function(e){if(e.target!==lbi)lb.classList.remove('on')};
   document.addEventListener('keydown',function(e){if(e.key==='Escape')lb.classList.remove('on')});
 
-  // Reveal ao rolar
-  var els=document.querySelectorAll('.rv');
-  if('IntersectionObserver' in window){
-    var io=new IntersectionObserver(function(es){es.forEach(function(x){if(x.isIntersecting){x.target.classList.add('in');io.unobserve(x.target)}})},{threshold:.12});
-    els.forEach(function(el,k){el.style.transitionDelay=(k%6)*70+'ms';io.observe(el)});
-  }else els.forEach(function(el){el.classList.add('in')});
+  // Revelar ao rolar: só esconde o que fica abaixo da primeira tela
+  var els=[].slice.call(document.querySelectorAll('.rv'));
+  if('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion:reduce)').matches){
+    var io=new IntersectionObserver(function(es){es.forEach(function(x){if(x.isIntersecting){x.target.classList.remove('pre');io.unobserve(x.target)}})},{threshold:.1});
+    els.forEach(function(el,k){if(el.getBoundingClientRect().top>innerHeight){el.style.transitionDelay=(k%4)*70+'ms';el.classList.add('pre');io.observe(el)}});
+  }
 })();
 </script>
 </body>

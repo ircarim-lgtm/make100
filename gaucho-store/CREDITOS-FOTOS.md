@@ -7,9 +7,7 @@ São imagens **provisórias**, para validar o layout — troque pelas fotos reai
 
 | Arquivo | Descrição | Fotógrafo(a) | Página |
 |---|---|---|---|
-| gaucha-rs.jpg | Gaúcha, cavalos e cães (RS) | Caroline Badran | https://unsplash.com/photos/yluhNcg2LdE |
 | pampa-branco.jpg | Cavaleiro em cavalo branco, pôr do sol | Taylor Brandon | https://unsplash.com/photos/3HmP1kOdACU |
-| gaucho-estancia.jpg | Gaucho na estância (Pampas) | J G | https://unsplash.com/photos/2vJ-fXZFgz0 |
 | cavalo-corda.jpg | Cavalo com pelego e manta | Floris Van Cauwelaert | https://unsplash.com/photos/H5vsCbjmDBE |
 | homem-chapeu.jpg | Gaúcho de boina tomando mate | Gautier Fenestraz | https://unsplash.com/photos/YvdJq5Qx2gQ |
 | mate-joselo.jpg | Mate na cozinha da estância | Gautier Fenestraz | https://unsplash.com/photos/xcTtq7gRfCU |
@@ -34,3 +32,6 @@ São imagens **provisórias**, para validar o layout — troque pelas fotos reai
 | sela-preta.jpg | Sela de couro preta | Jez Timms | https://unsplash.com/photos/ilox07iZ5iE |
 | lenco-homem.jpg | Lenço vermelho e camisa branca | Sergio Aguirre | https://unsplash.com/photos/5aBUs3s4BGE |
 | cavaleiro-cidade.jpg | Cavaleiro tradicional na cidade | Gautier Fenestraz | https://unsplash.com/photos/uOoeGNd_LeM |
+| hero-camisa.jpg | Cavaleira de poncho listrado em cavalo palomino | Andres Medina | https://unsplash.com/photos/QdQF79vFf4I |
+| hero-cavaleiro.jpg | Cavaleiro em contraluz ao pôr do sol | Rebecca Müller | https://unsplash.com/photos/jNxwLEq-e-Y |
+| hero-silhueta.jpg | Silhueta de cavaleiro, céu laranja | M o e | https://unsplash.com/photos/xIAkpXic7Qk |
