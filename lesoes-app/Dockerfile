@@ -3,7 +3,7 @@ ENV NODE_ENV=production DATA_DIR=/data PORT=3000
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
-COPY server.js db.js storage.js pdf.js ./
+COPY server.js db.js storage.js pdf.js termo.js ./
 COPY public ./public
 RUN mkdir /data && chown node:node /data
 USER node

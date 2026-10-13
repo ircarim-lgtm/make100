@@ -227,18 +227,18 @@ body:has(.login-wrap) { padding-left:0; background:#070d18; }
 body { -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
 input,textarea,select { -webkit-user-select:text; user-select:text; }
 img { -webkit-user-drag:none; user-select:none; pointer-events:none; }
-#wm { position:fixed; inset:0; z-index:9998; pointer-events:none; background-repeat:repeat; }
-.cover { position:fixed; inset:0; z-index:9999; display:none; place-items:center; text-align:center; color:#e7eefb; background:rgba(7,13,24,.98); -webkit-backdrop-filter:blur(30px); backdrop-filter:blur(30px); }
+#wm { position:fixed; top:0; right:0; bottom:0; left:0; z-index:9998; pointer-events:none; background-repeat:repeat; }
+.cover { position:fixed; top:0; right:0; bottom:0; left:0; z-index:9999; display:none; place-items:center; text-align:center; color:#e7eefb; background:rgba(7,13,24,.98); -webkit-backdrop-filter:blur(30px); backdrop-filter:blur(30px); }
 .cover.on { display:grid; } .cover p { margin:8px 0 2px; font-size:20px; font-weight:700; } .cover small { color:#9fb3cf; }
 tr.alerta td { color:var(--err); font-weight:650; }
 @media print { html,body { background:#fff !important; } body > * { display:none !important; } body::before { content:"Impressão bloqueada por segurança."; display:block; padding:48px; font:600 20px system-ui,sans-serif; color:#000; } }
 
 /* Câmera dentro do app */
-.cam { position:fixed; inset:0; z-index:9990; display:flex; flex-direction:column; background:#000; color:#fff; }
+.cam { position:fixed; top:0; right:0; bottom:0; left:0; z-index:9990; display:flex; flex-direction:column; background:#000; color:#fff; }
 .cam video,.cam canvas { flex:1; min-height:0; width:100%; object-fit:contain; background:#000; }
 .cam video[hidden],.cam canvas[hidden],.cam-bar[hidden] { display:none; }
 .cam-dica { padding:10px 14px; text-align:center; font-size:13px; color:#cfe0f5; background:rgba(255,255,255,.08); }
-.cam-msg { position:absolute; left:0; right:0; top:42%; padding:0 28px; text-align:center; font-size:16px; }
+.cam-msg { position:absolute; left:0; right:0; top:30%; padding:0 24px; text-align:center; font-size:16px; z-index:1; } .cam-msg[hidden] { display:none; } .cam-msg p { margin:0 0 8px; line-height:1.4; } .cam-msg small { display:block; color:#9fb3cf; font-size:12px; } .cam-acoes { display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-top:16px; } .cam-acoes button { color:#fff; background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.3); } .cam-acoes button[hidden] { display:none; } .cam-diag { display:block; margin-top:14px; color:#9fb3cf; font-size:13px; text-decoration:underline; }
 .cam-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 20px calc(16px + env(safe-area-inset-bottom)); background:#000; }
 .cam-bar > * { flex:1; } .cam-bar > span { visibility:hidden; }
 .cam-bar button { color:#fff; background:rgba(255,255,255,.12); border-color:rgba(255,255,255,.25); }
@@ -246,3 +246,16 @@ tr.alerta td { color:var(--err); font-weight:650; }
 .cam-bar .cam-shot { flex:none; width:72px; height:72px; padding:0; margin:0 auto; border:5px solid #fff; border-radius:50%; background:rgba(255,255,255,.25); }
 .cam-bar > button:first-child:not(.cam-shot) { flex:1; }
 .tabs.modo button { display:inline-flex; align-items:center; justify-content:center; gap:7px; }
+
+/* Autorização de uso de imagem + quadro de assinatura */
+.aut { display:flex; flex-wrap:wrap; align-items:center; gap:10px 14px; margin-top:14px; padding:12px 14px; border-radius:14px; border:1px solid var(--bd); background:var(--surface2); }
+.aut.ok { border-color:var(--ok); background:var(--okbg); } .aut.falta { border-color:var(--warn); background:var(--warnbg); }
+.aut-txt { flex:1 1 220px; display:flex; flex-direction:column; gap:2px; font-size:14px; } .aut-txt span { color:var(--mut); font-size:13px; }
+.aut-img { height:54px; max-width:140px; object-fit:contain; background:#fff; border:1px solid var(--bd); border-radius:8px; padding:2px; }
+.aut-acoes { display:flex; flex-wrap:wrap; gap:8px; width:100%; } button.perigo { color:var(--err); border-color:var(--err); }
+.aviso-aut { display:flex; flex-direction:column; align-items:flex-start; gap:6px; border-color:var(--warn); background:var(--warnbg); } .aviso-aut span { color:var(--mut); font-size:14px; }
+.termo { margin:12px 0 4px; padding:12px 14px; max-height:260px; overflow:auto; border:1px solid var(--bd); border-radius:12px; background:var(--surface2); font-size:14px; line-height:1.5; } .termo h3 { margin:0 0 6px; } .termo p { margin:0 0 8px; } .termo small { color:var(--mut); }
+.sig { position:relative; height:220px; background:#fff; border:2px dashed var(--bd); border-radius:14px; overflow:hidden; }
+.sig canvas { display:block; width:100%; height:100%; touch-action:none; cursor:crosshair; }
+.sig-dica { position:absolute; left:0; right:0; top:50%; transform:translateY(-50%); text-align:center; color:#9aa7b4; font-size:18px; pointer-events:none; } .sig-dica[hidden] { display:none; }
+.sig-acoes { margin:8px 0 4px; }

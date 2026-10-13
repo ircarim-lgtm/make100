@@ -25,6 +25,14 @@ CREATE TABLE IF NOT EXISTS registros (
 );
 CREATE INDEX IF NOT EXISTS idx_reg_pac ON registros(paciente_id);
 CREATE INDEX IF NOT EXISTS idx_reg_status ON registros(status);
+CREATE TABLE IF NOT EXISTS autorizacoes (
+  id TEXT PRIMARY KEY, paciente_id TEXT NOT NULL REFERENCES pacientes(id) ON DELETE CASCADE,
+  signatario TEXT NOT NULL, parentesco TEXT NOT NULL, documento TEXT,
+  assinatura_arquivo TEXT NOT NULL, termo_versao TEXT NOT NULL, hash TEXT NOT NULL, ip TEXT,
+  coletado_por TEXT NOT NULL, coletado_por_nome TEXT NOT NULL, criado_em TEXT NOT NULL,
+  revogada_em TEXT, revogada_por_nome TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_aut_pac ON autorizacoes(paciente_id);
 CREATE TABLE IF NOT EXISTS auditoria (
   id ${auto}, em TEXT NOT NULL, user_id TEXT, user_nome TEXT, acao TEXT NOT NULL, alvo TEXT
 );

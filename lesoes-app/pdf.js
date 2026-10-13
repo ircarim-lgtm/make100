@@ -11,7 +11,7 @@ const dt = (iso) => (iso ? new Date(iso).toLocaleDateString('pt-BR', { timeZone:
 const idade = (nasc) => (nasc ? `${Math.floor((Date.now() - new Date(nasc)) / 31557600000)} anos` : '');
 
 function novoDoc(titulo) {
-  const doc = new PDFDocument({ size: 'A4', margin: M, bufferPages: true, info: { Title: titulo, Author: 'Lesões por Pressão' } });
+  const doc = new PDFDocument({ size: 'A4', margin: M, bufferPages: true, info: { Title: titulo, Author: 'EvoluIA' } });
   doc.rect(0, 0, W, 72).fill(COR);
   doc.fillColor('#fff').font('Helvetica-Bold').fontSize(18).text(titulo, M, 24, { width: CW });
   doc.fillColor('#000');
@@ -118,10 +118,38 @@ function rodape(doc, geradoPor) {
   }
 }
 
+/** Autorização de uso de imagem: quem assinou, quando e a imagem da assinatura. */
+function blocoAutorizacao(doc, a) {
+  secao(doc, 'Autorização de uso de imagem');
+  if (!a) {
+    doc.font('Helvetica-Oblique').fontSize(10).fillColor('#b45309').text('Autorização de uso de imagem não coletada para este paciente.', M, doc.y).fillColor('#000');
+    doc.moveDown(0.4);
+    return;
+  }
+  campo(doc, 'Situação', a.revogada_em ? `Revogada em ${dh(a.revogada_em)}` : 'Autorizada');
+  campo(doc, 'Assinado por', `${a.signatario} (${a.parentesco})`);
+  if (a.documento) campo(doc, 'Documento', a.documento);
+  campo(doc, 'Data e hora', dh(a.criado_em));
+  campo(doc, 'Coletado por', a.coletado_por_nome);
+  campo(doc, 'Termo', `${a.titulo} · versão ${a.termo_versao}`);
+  espaco(doc, 110);
+  if (a.assinaturaBuf) {
+    try {
+      const y = doc.y + 4;
+      doc.rect(M, y, 220, 80).fillAndStroke('#ffffff', '#d5dde0');
+      doc.image(a.assinaturaBuf, M + 6, y + 4, { fit: [208, 72], align: 'center', valign: 'center' });
+      doc.y = y + 86;
+    } catch { doc.font('Helvetica-Oblique').fontSize(9).fillColor(CINZA).text('(imagem da assinatura indisponível)', M, doc.y).fillColor('#000'); }
+  }
+  doc.font('Helvetica').fontSize(7).fillColor(CINZA).text(`Selo de integridade: ${a.hash}`, M, doc.y, { width: CW }).fillColor('#000');
+  doc.moveDown(0.4);
+}
+
 /** Relatório de uma avaliação (um registro já avaliado). */
-export function relatorioRegistro({ paciente, registro, fotoBuf, geradoPor }) {
+export function relatorioRegistro({ paciente, registro, fotoBuf, autorizacao, geradoPor }) {
   const doc = novoDoc('Relatório de avaliação de lesão por pressão');
   dadosPaciente(doc, paciente);
+  blocoAutorizacao(doc, autorizacao);
   secao(doc, 'Lesão e avaliação');
   blocoLesao(doc, registro, fotoBuf);
   rodape(doc, geradoPor);
@@ -129,9 +157,10 @@ export function relatorioRegistro({ paciente, registro, fotoBuf, geradoPor }) {
 }
 
 /** Histórico completo: resumo da evolução + cada lesão (mais antiga primeiro). */
-export function relatorioHistorico({ paciente, registros, fotos, geradoPor }) {
+export function relatorioHistorico({ paciente, registros, fotos, autorizacao, geradoPor }) {
   const doc = novoDoc('Histórico de lesões por pressão');
   dadosPaciente(doc, paciente);
+  blocoAutorizacao(doc, autorizacao);
   secao(doc, `Resumo da evolução (${registros.length} registro${registros.length === 1 ? '' : 's'})`);
   const COLS = [[M, 80], [M + 80, 190], [M + 270, 130], [M + 400, 95]];
   const linha = (vals, bold) => {

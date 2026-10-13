@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Teste da câmera</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main style="max-width:560px">
+  <h2>Teste da câmera</h2>
+  <p class="muted">Esta página só verifica se o seu navegador consegue usar a câmera. Nada é gravado nem enviado.</p>
+  <button class="primary" id="iniciar" style="width:100%">Testar câmera agora</button>
+  <video id="video" playsinline muted autoplay style="display:none;width:100%;margin-top:12px;border-radius:14px;background:#000"></video>
+  <div class="card" style="margin-top:14px"><h3 style="margin-top:0">Resultado</h3><pre id="saida" style="white-space:pre-wrap;word-break:break-word;font-size:13px;margin:0;-webkit-user-select:text;user-select:text">Toque no botão acima.</pre></div>
+  <p class="muted">Se der erro, tire um print desta tela e envie para o suporte.</p>
+  <p><a class="link" href="/">← Voltar ao aplicativo</a></p>
+</main>
+<script src="/camera-teste.js"></script>
+</body>
+</html>
