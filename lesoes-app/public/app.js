@@ -204,10 +204,10 @@ const SKELETON = '<div class="skel"><i></i><i></i><i></i></div>';
 
 const btnNav = (id, nome, ativo) => `<button id="${id}" class="${ativo ? 'ativo' : ''}" title="${nome}" aria-label="${nome}">${I(id === 'conta' ? 'user' : id)}<span>${nome}</span></button>`;
 function shell(inner) {
-  return `<aside class="side"><div class="brand"><span class="logo">${LOGO}</span><div><b>Lesões por Pressão</b><small>Estomaterapia</small></div></div>
+  return `<aside class="side"><div class="brand"><span class="logo">${LOGO}</span><div><b>EvoluIA</b><small>Acompanhamento de lesões</small></div></div>
     <nav class="nav">${btnNav('home', 'Início', state.view === 'home')}${btnNav('conta', 'Conta', state.view === 'conta')}${btnNav('out', 'Sair')}</nav>
     <div class="usercard">${avatar(user.nome, 'sm')}<div><b>${esc(user.nome)}</b><small>${PERFIL[user.perfil]}</small></div></div></aside>
-    <header class="appbar"><span class="logo">${LOGO}</span><h1>Lesões por Pressão<small>${esc(user.nome)} · ${PERFIL[user.perfil]}</small></h1></header>
+    <header class="appbar"><span class="logo">${LOGO}</span><h1>EvoluIA<small>${esc(user.nome)} · ${PERFIL[user.perfil]}</small></h1></header>
     <span id="badge" hidden></span><main>${inner}</main>`;
 }
 function bindShell() {
@@ -228,7 +228,7 @@ function renderLogin() {
   $('#app').innerHTML = `<div class="login-wrap"><section class="login-hero"><div class="logo">${LOGO}</div>
     <h1>Cada lesão, acompanhada de perto.</h1><p>Registre a foto, envie para a estomaterapeuta e receba a devolutiva dentro do app.</p>
     <ul><li>${I('camera')} Foto da lesão em segundos</li><li>${I('spark')} Devolutiva da estomaterapeuta no app</li><li>${I('file')} Histórico e relatório em PDF</li></ul></section>
-    <form class="login" id="f"><div class="marca"><div class="logo">${LOGO}</div><h2>Lesões por Pressão</h2><p>Acompanhamento com apoio da estomaterapia</p></div>
+    <form class="login" id="f"><div class="marca"><div class="logo">${LOGO}</div><h2>EvoluIA</h2><p>Acompanhamento de lesões</p></div>
     <label>Usuário</label><input name="login" autocomplete="username" required>
     <label>Senha</label><input name="senha" type="password" autocomplete="current-password" required>
     <div class="err" id="e"></div><button class="primary" style="width:100%">Entrar</button></form></div>`;

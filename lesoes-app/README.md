@@ -1,4 +1,4 @@
-# Acompanhamento de Lesões por Pressão
+# EvoluIA — acompanhamento de lesões
 
 **Examinador** cadastra o paciente (com consentimento) → registra a lesão e anexa a foto → clica **Enviar para Estomaterapeuta** →
 a **Estomaterapeuta** avalia (classificação, tratamento, orientações, prazo de reavaliação) e a devolutiva aparece no app.

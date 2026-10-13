@@ -487,5 +487,5 @@ export const server = http.createServer(handler);
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const port = process.env.PORT || 3000;
-  server.listen(port, () => console.log(`Lesões por pressão: http://localhost:${port}`));
+  server.listen(port, () => console.log(`EvoluIA: http://localhost:${port}`));
 }

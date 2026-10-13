@@ -1,7 +1,7 @@
 {
-  "name": "Lesões por Pressão",
-  "short_name": "Lesões",
-  "description": "Acompanhamento de lesões por pressão com devolutiva da estomaterapeuta",
+  "name": "EvoluIA",
+  "short_name": "EvoluIA",
+  "description": "Acompanhamento de lesões com devolutiva da estomaterapeuta",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#070d18",

@@ -11,7 +11,7 @@ const dt = (iso) => (iso ? new Date(iso).toLocaleDateString('pt-BR', { timeZone:
 const idade = (nasc) => (nasc ? `${Math.floor((Date.now() - new Date(nasc)) / 31557600000)} anos` : '');
 
 function novoDoc(titulo) {
-  const doc = new PDFDocument({ size: 'A4', margin: M, bufferPages: true, info: { Title: titulo, Author: 'Lesões por Pressão' } });
+  const doc = new PDFDocument({ size: 'A4', margin: M, bufferPages: true, info: { Title: titulo, Author: 'EvoluIA' } });
   doc.rect(0, 0, W, 72).fill(COR);
   doc.fillColor('#fff').font('Helvetica-Bold').fontSize(18).text(titulo, M, 24, { width: CW });
   doc.fillColor('#000');
