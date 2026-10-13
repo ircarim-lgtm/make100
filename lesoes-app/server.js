@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
 import { openStorage } from './storage.js';
 import { relatorioRegistro, relatorioHistorico } from './pdf.js';
+import { TERMO_VERSAO, TERMO_TITULO, TERMO_PARAGRAFOS, TERMO_HASH, PARENTESCOS } from './termo.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
@@ -120,17 +121,27 @@ const pacOut = (p) => ({
   comorbidades: p.comorbidades, braden: p.braden, consentimentoPor: p.consentimento_por, consentimentoEm: p.consentimento_em,
   criadoEm: p.criado_em, totalRegistros: p.total,
 });
-const REG_SQL = 'SELECT r.*, p.nome p_nome, p.prontuario p_pront, p.setor p_setor, p.leito p_leito FROM registros r JOIN pacientes p ON p.id = r.paciente_id';
+const REG_SQL = 'SELECT r.*, p.nome p_nome, p.prontuario p_pront, p.setor p_setor, p.leito p_leito, CAST((SELECT COUNT(*) FROM autorizacoes a WHERE a.paciente_id = p.id AND a.revogada_em IS NULL) AS INTEGER) p_aut FROM registros r JOIN pacientes p ON p.id = r.paciente_id';
 const regOut = (r, user) => ({
   id: r.id, pacienteId: r.paciente_id, local: r.local, observacoes: r.observacoes, status: r.status,
   foto: r.foto_arquivo ? { tipo: r.foto_tipo, enviadaEm: r.foto_em } : null,
   criadoPor: r.criado_por, criadoPorNome: r.criado_por_nome, criadoEm: r.criado_em, enviadoEm: r.enviado_em,
   avaliacao: r.avaliacao ? JSON.parse(r.avaliacao) : null,
   novo: user.perfil === 'examinador' && r.status === 'avaliado' && !r.avaliacao_visto && r.criado_por === user.id,
-  paciente: { id: r.paciente_id, nome: r.p_nome, prontuario: r.p_pront, setor: r.p_setor, leito: r.p_leito },
+  paciente: { id: r.paciente_id, nome: r.p_nome, prontuario: r.p_pront, setor: r.p_setor, leito: r.p_leito, autorizado: r.p_aut > 0 },
+});
+const autOut = (a) => ({
+  id: a.id, signatario: a.signatario, parentesco: a.parentesco, documento: a.documento ? `•••${a.documento.slice(-2)}` : null,
+  termoVersao: a.termo_versao, coletadoPorNome: a.coletado_por_nome, criadoEm: a.criado_em, revogadaEm: a.revogada_em,
 });
 const userOut = (u) => ({ id: u.id, nome: u.nome, login: u.login, perfil: u.perfil, ativo: !!u.ativo, criadoEm: u.criado_em });
 
+// Autorização mais recente (ativa ou revogada) com a imagem da assinatura, para constar nos PDFs.
+const autorizacaoParaPdf = async (pacienteId) => {
+  const a = await db.get('SELECT * FROM autorizacoes WHERE paciente_id = ? ORDER BY criado_em DESC LIMIT 1', pacienteId);
+  if (!a) return null;
+  return { ...a, titulo: TERMO_TITULO, assinaturaBuf: await storage.get(a.assinatura_arquivo).catch(() => null) };
+};
 const sigOk = (b, t) => t === 'image/jpeg' ? b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff
   : t === 'image/png' ? b.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47]))
   : b.subarray(0, 4).toString() === 'RIFF' && b.subarray(8, 12).toString() === 'WEBP';
@@ -270,6 +281,57 @@ async function handleApi(req, res, url) {
     await audit(user, 'paciente_criado', prontuario);
     return send(res, 201, pacOut(await db.get('SELECT p.*, 0 total FROM pacientes p WHERE id = ?', pid)));
   }
+  // ----- Autorização de uso de imagem (assinatura da família na tela) -----
+  if (pathname === '/api/autorizacao/termo' && method === 'GET') {
+    return send(res, 200, { versao: TERMO_VERSAO, titulo: TERMO_TITULO, paragrafos: TERMO_PARAGRAFOS, parentescos: PARENTESCOS });
+  }
+  if ((m = pathname.match(/^\/api\/pacientes\/(\w+)\/autorizacao(?:\/(assinatura|revogar))?$/))) {
+    if (deny('Sem acesso', clinico)) return;
+    const p = await db.get('SELECT * FROM pacientes WHERE id = ?', m[1]);
+    if (!p) return fail(res, 404, 'Paciente não encontrado');
+    const sub = m[2];
+    const ativa = () => db.get('SELECT * FROM autorizacoes WHERE paciente_id = ? AND revogada_em IS NULL ORDER BY criado_em DESC LIMIT 1', p.id);
+    if (!sub && method === 'GET') {
+      const todas = await db.all('SELECT * FROM autorizacoes WHERE paciente_id = ? ORDER BY criado_em DESC', p.id);
+      return send(res, 200, { atual: todas.find((a) => !a.revogada_em) ? autOut(todas.find((a) => !a.revogada_em)) : null, historico: todas.map(autOut) });
+    }
+    if (!sub && method === 'POST') {
+      if (deny('Apenas examinador ou estomaterapeuta coletam a assinatura', podeRegistrar)) return;
+      const b = await readJson(req);
+      const signatario = str(b.signatario, 120), parentesco = str(b.parentesco, 60), documento = str(b.documento, 20).replace(/[^\w.-]/g, '');
+      if (!signatario) return fail(res, 400, 'Informe o nome de quem está assinando');
+      if (!PARENTESCOS.includes(parentesco)) return fail(res, 400, 'Informe o grau de parentesco / vínculo');
+      if (b.aceite !== true) return fail(res, 400, 'É necessário marcar que o termo foi lido e aceito');
+      const m64 = typeof b.assinatura === 'string' && b.assinatura.match(/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/);
+      const png = m64 ? Buffer.from(m64[1], 'base64') : null;
+      if (!png || !sigOk(png, 'image/png')) return fail(res, 400, 'Assinatura inválida');
+      if (png.length < 600) return fail(res, 400, 'Assine na tela antes de confirmar');
+      if (png.length > 400 * 1024) return fail(res, 413, 'Assinatura grande demais');
+      const aid = id(), em = now();
+      const arquivo = await storage.put(`ass-${aid}.png`, png, 'image/png');
+      // selo de integridade: amarra paciente, signatário, versão/texto do termo, data e a imagem da assinatura
+      const selo = sha(JSON.stringify({ paciente: p.id, signatario, parentesco, documento, versao: TERMO_VERSAO, termo: TERMO_HASH, em, assinatura: sha(png.toString('base64')) }));
+      await db.run('UPDATE autorizacoes SET revogada_em = ?, revogada_por_nome = ? WHERE paciente_id = ? AND revogada_em IS NULL', em, `substituída por ${user.nome}`, p.id);
+      await db.run('INSERT INTO autorizacoes (id,paciente_id,signatario,parentesco,documento,assinatura_arquivo,termo_versao,hash,ip,coletado_por,coletado_por_nome,criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+        aid, p.id, signatario, parentesco, documento || null, arquivo, TERMO_VERSAO, selo, clientIp(req) || null, user.id, user.nome, em);
+      await audit(user, 'autorizacao_assinada', p.prontuario);
+      return send(res, 201, autOut(await db.get('SELECT * FROM autorizacoes WHERE id = ?', aid)));
+    }
+    if (sub === 'assinatura' && method === 'GET') {
+      const a = await ativa();
+      if (!a) return fail(res, 404, 'Sem autorização ativa');
+      await audit(user, 'assinatura_visualizada', p.prontuario);
+      return send(res, 200, await storage.get(a.assinatura_arquivo), { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' });
+    }
+    if (sub === 'revogar' && method === 'POST') {
+      if (deny('Apenas examinador ou estomaterapeuta registram a revogação', podeRegistrar)) return;
+      const a = await ativa();
+      if (!a) return fail(res, 404, 'Sem autorização ativa');
+      await db.run('UPDATE autorizacoes SET revogada_em = ?, revogada_por_nome = ? WHERE id = ?', now(), user.nome, a.id);
+      await audit(user, 'autorizacao_revogada', p.prontuario);
+      return send(res, 200, { ok: true });
+    }
+  }
   if ((m = pathname.match(/^\/api\/pacientes\/(\w+)\/pdf$/)) && method === 'GET') {
     if (deny('Apenas a estomaterapeuta e o administrador podem baixar PDF', isEstoma || isAdmin)) return;
     const p = await db.get('SELECT * FROM pacientes WHERE id = ?', m[1]);
@@ -278,8 +340,9 @@ async function handleApi(req, res, url) {
     if (!registros.length) return fail(res, 404, 'Este paciente ainda não tem registros enviados para avaliação');
     const fotos = new Map(); // todas as fotos; a resposta é transmitida em partes (streaming), sem o limite de 4,5 MB
     for (const r of registros) if (r.foto_arquivo) fotos.set(r.id, await storage.get(r.foto_arquivo));
+    const autorizacao = await autorizacaoParaPdf(p.id);
     await audit(user, 'historico_pdf', p.prontuario);
-    return sendPdf(res, relatorioHistorico({ paciente: p, registros, fotos, geradoPor: user.nome }), `historico-lesoes-${p.prontuario}.pdf`);
+    return sendPdf(res, relatorioHistorico({ paciente: p, registros, fotos, autorizacao, geradoPor: user.nome }), `historico-lesoes-${p.prontuario}.pdf`);
   }
   if ((m = pathname.match(/^\/api\/pacientes\/(\w+)$/))) {
     const p = await db.get('SELECT p.*, 0 total FROM pacientes p WHERE id = ?', m[1]);
@@ -289,11 +352,14 @@ async function handleApi(req, res, url) {
       const filtro = isEstoma ? `AND ${meusRascunhos}` : '';
       const regs = (await db.all(`${REG_SQL} WHERE r.paciente_id = ? ${filtro} ORDER BY r.criado_em DESC`, p.id, ...(isEstoma ? [user.id] : []))).map((r) => regOut(r, user));
       await audit(user, 'paciente_visualizado', p.prontuario);
-      return send(res, 200, { ...pacOut(p), registros: regs });
+      const aut = await db.get('SELECT * FROM autorizacoes WHERE paciente_id = ? AND revogada_em IS NULL ORDER BY criado_em DESC LIMIT 1', p.id);
+      const ultima = aut || await db.get('SELECT * FROM autorizacoes WHERE paciente_id = ? ORDER BY criado_em DESC LIMIT 1', p.id);
+      return send(res, 200, { ...pacOut(p), autorizacao: ultima ? autOut(ultima) : null, registros: regs });
     }
     if (method === 'DELETE') { // direito de eliminação (LGPD)
       if (deny('Apenas o administrador exclui pacientes', isAdmin)) return;
       for (const r of await db.all('SELECT foto_arquivo f FROM registros WHERE paciente_id = ? AND foto_arquivo IS NOT NULL', p.id)) await storage.del(r.f);
+      for (const a of await db.all('SELECT assinatura_arquivo f FROM autorizacoes WHERE paciente_id = ?', p.id)) await storage.del(a.f);
       await db.run('DELETE FROM pacientes WHERE id = ?', p.id);
       await audit(user, 'paciente_excluido', p.prontuario);
       return send(res, 200, { ok: true });
@@ -366,9 +432,10 @@ async function handleApi(req, res, url) {
         if (r.status !== 'avaliado') return fail(res, 409, 'O relatório fica disponível após a avaliação da estomaterapeuta');
         const paciente = await db.get('SELECT * FROM pacientes WHERE id = ?', r.paciente_id);
         const fotoBuf = r.foto_arquivo ? await storage.get(r.foto_arquivo) : null;
+        const autorizacao = await autorizacaoParaPdf(r.paciente_id);
         await audit(user, 'relatorio_pdf', r.id);
         const dia = (r.enviado_em || r.criado_em).slice(0, 10);
-        return sendPdf(res, relatorioRegistro({ paciente, registro: r, fotoBuf, geradoPor: user.nome }), `relatorio-lesao-${paciente.prontuario}-${dia}.pdf`);
+        return sendPdf(res, relatorioRegistro({ paciente, registro: r, fotoBuf, autorizacao, geradoPor: user.nome }), `relatorio-lesao-${paciente.prontuario}-${dia}.pdf`);
       }
       if (sub === 'enviar' && method === 'POST') {
         if (deny('Apenas examinador ou estomaterapeuta enviam para avaliação', podeRegistrar)) return;

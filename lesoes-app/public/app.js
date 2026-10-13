@@ -372,6 +372,59 @@ function renderNovoPaciente() {
   };
 }
 
+// ---------- Assinatura da família (autorização de uso de imagem) ----------
+async function renderAssinatura() {
+  const [termo, p] = await Promise.all([api('/autorizacao/termo'), api('/pacientes/' + state.pacienteId)]);
+  $('#app').innerHTML = shell(`<form class="card pagina-form" id="f"><h2>Autorização de uso de imagem</h2>
+    <div class="muted">Paciente: <b>${esc(p.nome)}</b> · Atend. ${esc(p.prontuario)}</div>
+    <div class="termo"><h3>${esc(termo.titulo)}</h3>${termo.paragrafos.map((t) => `<p>${esc(t)}</p>`).join('')}<small>Termo versão ${esc(termo.versao)}</small></div>
+    <label>Nome de quem está assinando *</label><input name="signatario" required autocomplete="off">
+    <div class="row"><div><label>Grau de parentesco / vínculo *</label><select name="parentesco" required><option value="">Selecione…</option>${termo.parentescos.map((x) => `<option>${esc(x)}</option>`).join('')}</select></div>
+      <div><label>CPF ou RG (opcional)</label><input name="documento" inputmode="numeric" autocomplete="off"></div></div>
+    <label>Assinatura * <span class="muted">(use o dedo na área abaixo)</span></label>
+    <div class="sig"><canvas id="sig" aria-label="Área de assinatura"></canvas><span class="sig-dica" id="sigDica">Assine aqui</span></div>
+    <div class="sig-acoes"><button type="button" id="limpar">Limpar assinatura</button></div>
+    <label class="check"><input type="checkbox" name="aceite" required><span>Li e concordo com o termo acima.</span></label>
+    <div class="err" id="e"></div>
+    <div class="row nofill"><button type="button" id="cancel">Cancelar</button><button class="primary" id="ok">Confirmar assinatura</button></div></form>`);
+  bindShell();
+  $('#cancel').onclick = () => go('paciente', { id: p.id });
+  const cv = $('#sig'), ctx = cv.getContext('2d');
+  let desenhando = false, ultimo = null, tracado = 0;
+  const ajustar = () => { // tamanho em pixels reais (nítido em telas de alta densidade)
+    const r = cv.getBoundingClientRect(), k = window.devicePixelRatio || 1;
+    cv.width = Math.round(r.width * k); cv.height = Math.round(r.height * k);
+    ctx.setTransform(k, 0, 0, k, 0, 0); ctx.lineWidth = 2.6; ctx.lineCap = ctx.lineJoin = 'round'; ctx.strokeStyle = '#0b1b3a';
+    tracado = 0; $('#sigDica').hidden = false;
+  };
+  ajustar();
+  const ponto = (e) => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  cv.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); cv.setPointerCapture(e.pointerId); desenhando = true; ultimo = ponto(e); $('#sigDica').hidden = true;
+    ctx.beginPath(); ctx.arc(ultimo[0], ultimo[1], 0.8, 0, 7); ctx.fill(); tracado += 6;
+  });
+  cv.addEventListener('pointermove', (e) => {
+    if (!desenhando) return; e.preventDefault();
+    const pt = ponto(e); ctx.beginPath(); ctx.moveTo(...ultimo); ctx.lineTo(...pt); ctx.stroke();
+    tracado += Math.hypot(pt[0] - ultimo[0], pt[1] - ultimo[1]); ultimo = pt;
+  });
+  const fim = () => { desenhando = false; };
+  cv.addEventListener('pointerup', fim); cv.addEventListener('pointercancel', fim); cv.addEventListener('pointerleave', fim);
+  $('#limpar').onclick = ajustar;
+  $('#f').onsubmit = async (ev) => {
+    ev.preventDefault(); $('#e').textContent = '';
+    if (tracado < 60) { $('#e').textContent = 'Peça para a pessoa assinar na área indicada antes de confirmar.'; return; }
+    const out = document.createElement('canvas'); // exporta com fundo branco, em tamanho moderado
+    const k = Math.min(1, 700 / cv.width); out.width = Math.round(cv.width * k); out.height = Math.round(cv.height * k);
+    const oc = out.getContext('2d'); oc.fillStyle = '#fff'; oc.fillRect(0, 0, out.width, out.height); oc.drawImage(cv, 0, 0, out.width, out.height);
+    const f = ev.target; $('#ok').disabled = true;
+    try {
+      await api(`/pacientes/${p.id}/autorizacao`, { method: 'POST', body: { signatario: f.signatario.value, parentesco: f.parentesco.value, documento: f.documento.value, aceite: f.aceite.checked, assinatura: out.toDataURL('image/png') } });
+      go('paciente', { id: p.id });
+    } catch (e) { $('#e').textContent = e.message; $('#ok').disabled = false; }
+  };
+}
+
 // Comparação lado a lado da evolução da lesão
 function comparar(regs) {
   const com = regs.filter((r) => r.foto).sort((a, b) => a.criadoEm.localeCompare(b.criadoEm));
@@ -394,11 +447,20 @@ function bindComparar(regs) {
 
 async function renderPaciente() {
   const p = await api('/pacientes/' + state.id);
+  const aut = p.autorizacao;
   const idade = p.dataNascimento ? Math.floor((Date.now() - new Date(p.dataNascimento)) / 31557600000) + ' anos' : '';
   $('#app').innerHTML = shell(`<div class="card"><div class="pac-head">${avatar(p.nome, 'lg')}<div style="min-width:0"><h2>${esc(p.nome)}</h2>
       <div class="chips"><span class="chip">Atend. ${esc(p.prontuario)}</span>${p.setor ? `<span class="chip">${esc(p.setor)}</span>` : ''}${p.leito ? `<span class="chip">Leito ${esc(p.leito)}</span>` : ''}${idade ? `<span class="chip">${idade}</span>` : ''}${p.sexo ? `<span class="chip">${esc(p.sexo)}</span>` : ''}${p.braden ? `<span class="chip">Braden ${esc(p.braden)}</span>` : ''}</div></div></div>
     ${p.comorbidades ? `<p style="margin:14px 0 4px">${esc(p.comorbidades)}</p>` : ''}
     <div class="muted" style="margin-top:10px">Consentimento: ${esc(p.consentimentoPor)} em ${fmt(p.consentimentoEm)}</div>
+    <div class="aut ${aut && !aut.revogadaEm ? 'ok' : 'falta'}" id="aut">
+      <div class="aut-txt"><b>Autorização de uso de imagem</b>
+        <span>${aut && !aut.revogadaEm ? `Assinada por ${esc(aut.signatario)} (${esc(aut.parentesco)}) em ${fmt(aut.criadoEm)}`
+          : aut ? `Revogada em ${fmt(aut.revogadaEm)}. Colete uma nova assinatura para fotografar.` : 'Ainda não assinada pela família.'}</span></div>
+      ${aut && !aut.revogadaEm ? '<img id="assImg" class="aut-img" alt="Assinatura da família">' : ''}
+      ${podeRegistrar() ? `<div class="aut-acoes"><button class="${aut && !aut.revogadaEm ? '' : 'primary'}" id="assinar">${I('plus')} ${aut && !aut.revogadaEm ? 'Nova assinatura' : 'Coletar assinatura da família'}</button>
+        ${aut && !aut.revogadaEm ? '<button id="revogar" class="perigo">Registrar revogação</button>' : ''}</div>` : ''}
+    </div>
     <div class="acoes">${podeRegistrar() ? `<button class="primary" id="nova">${I('plus')} Nova lesão / foto</button>` : ''}
     ${user.perfil !== 'examinador' && p.registros.some((r) => r.status !== 'rascunho') ? `<button id="pdfhist">${I('file')} Baixar histórico completo (PDF)</button>` : ''}</div><div class="err" id="e"></div></div>
     <div class="card"><div class="sec-h" style="margin-top:0"><h2>Evolução</h2></div>${comparar(p.registros)}</div>
@@ -409,6 +471,12 @@ async function renderPaciente() {
   $('#back').onclick = () => go('home');
   if ($('#pdfhist')) $('#pdfhist').onclick = async () => { try { await baixarPdf(`/pacientes/${p.id}/pdf`, `historico-lesoes-${p.prontuario}.pdf`); } catch (e) { $('#e').textContent = e.message; } };
   if ($('#nova')) $('#nova').onclick = () => go('novoRegistro', { pacienteId: p.id });
+  if ($('#assinar')) $('#assinar').onclick = () => go('assinatura', { pacienteId: p.id });
+  if ($('#assImg')) api(`/pacientes/${p.id}/autorizacao/assinatura`, { raw: true }).then(async (r) => { $('#assImg').src = URL.createObjectURL(await r.blob()); }).catch(() => {});
+  if ($('#revogar')) $('#revogar').onclick = async () => {
+    if (!confirm('Registrar que a família revogou a autorização de uso de imagem? Novas fotos só poderão ser feitas após nova assinatura.')) return;
+    try { await api(`/pacientes/${p.id}/autorizacao/revogar`, { method: 'POST' }); render(); } catch (e) { $('#e').textContent = e.message; }
+  };
 }
 
 // ---------- Registro ----------
@@ -441,6 +509,7 @@ async function renderRegistro() {
       <div class="chips"><span class="chip">Atend. ${esc(r.paciente?.prontuario)}</span>${r.paciente?.setor ? `<span class="chip">${esc(r.paciente.setor)}</span>` : ''}<span class="chip">${esc(r.local) || 'local não informado'}</span></div></div>${badge(r.status)}</div>
     <div class="muted">Registrado por ${esc(r.criadoPorNome)} em ${fmt(r.criadoEm)}${r.enviadoEm ? ' · Enviado em ' + fmt(r.enviadoEm) : ''}</div>
     ${r.observacoes ? `<p style="margin:10px 0 0">${esc(r.observacoes)}</p>` : ''}</div>
+  ${r.paciente?.autorizado === false && r.status === 'rascunho' && podeRegistrar() ? `<div class="card aviso-aut"><b>Falta a autorização de uso de imagem.</b><span>A família ainda não assinou o termo deste paciente. Colete a assinatura antes de fotografar a lesão.</span><button id="irAssinar">Coletar assinatura agora</button></div>` : ''}
   ${av ? `<div class="card"><h2>Devolutiva da estomaterapeuta</h2><div class="muted">${esc(av.avaliadoPorNome)} · ${fmt(av.avaliadoEm)}</div>
      ${av.estagio ? `<h3>Classificação</h3><p style="margin:0">${ESTAGIO[av.estagio]}</p>` : ''}
      <h3>Tratamento indicado</h3><div class="devolutiva">${esc(av.tratamento)}</div>
@@ -458,6 +527,7 @@ async function renderRegistro() {
   bindShell(); habilitarVoz();
   $('#back').onclick = () => go('home');
   $('#hist').onclick = () => go('paciente', { id: r.pacienteId });
+  if ($('#irAssinar')) $('#irAssinar').onclick = () => go('assinatura', { pacienteId: r.pacienteId });
   if (r.foto) carregarFoto($('#foto'), r.id);
   if ($('#camera')) $('#camera').onclick = async () => {
     const blob = await abrirCamera(); if (!blob) return; $('#e').textContent = 'Enviando foto…';
@@ -493,6 +563,7 @@ async function render() {
     if (v === 'novoPaciente') return renderNovoPaciente();
     if (v === 'paciente') return await renderPaciente();
     if (v === 'novoRegistro') return renderNovoRegistro();
+    if (v === 'assinatura') return await renderAssinatura();
     if (v === 'registro') return await renderRegistro();
   } catch (e) { if (token) { $('#app').innerHTML = shell(`<p class="err">${esc(e.message)}</p>`); bindShell(); } }
 }

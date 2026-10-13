@@ -10,6 +10,7 @@ a **Estomaterapeuta** avalia (classificação, tratamento, orientações, prazo 
 - Comparação de fotos antes/depois por paciente.
 - **Relatórios em PDF** com foto: um por avaliação (botão na devolutiva) e o histórico completo do paciente, com todas as lesões em ordem cronológica.
 - **Ditado por voz** (🎤 Ditar) nos campos de texto do examinador e da estomaterapeuta, em português. Usa o reconhecimento de fala do próprio navegador (Chrome/Edge/Android e Safari/iOS), sem custo; o áudio é processado pelo serviço de voz do navegador (Google/Apple), não pelo app. Peça ao DPO para avaliar esse ponto.
+- **Autorização de uso de imagem assinada na tela do celular**: na ficha do paciente, "Coletar assinatura da família" mostra o termo, pede nome, parentesco e (opcional) CPF/RG, e a família assina com o dedo. Fica gravada com data, quem coletou, versão do termo e selo de integridade (hash), e aparece nos PDFs. Dá para registrar revogação ou coletar nova assinatura. Se faltar a assinatura, a tela da lesão avisa (não bloqueia a foto). O texto do termo fica em `termo.js` (aumente `TERMO_VERSAO` ao editar).
 - **Foto tirada dentro do app** (câmera ao vivo do navegador, sem passar pelo app de câmera do sistema), por isso **não é gravada na galeria** do aparelho; não há opção de escolher foto da galeria.
 - A **estomaterapeuta também atua como examinador**: alterna entre os modos na tela inicial, cadastra pacientes, fotografa e envia, e só vê os rascunhos que ela mesma criou.
 - Trilha de auditoria (logins, acessos a paciente e a fotos, envios, avaliações).

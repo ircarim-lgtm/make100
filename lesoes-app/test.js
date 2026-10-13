@@ -175,9 +175,59 @@ assert.equal((await call('/me/senha', { token: ex, method: 'POST', body: { atual
 assert.equal((await login('examinador', 'exam1234')).status, 401);
 assert.equal((await login('examinador', 'novasenha1')).status, 200);
 
+
+// --- autorização de uso de imagem (assinatura da família na tela)
+import zlib from 'node:zlib';
+const crcT = (() => { const t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc = (b) => { let c = 0xffffffff; for (const x of b) c = crcT[(c ^ x) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+const chunk = (t, d) => { const l = Buffer.alloc(4); l.writeUInt32BE(d.length); const td = Buffer.concat([Buffer.from(t), d]); const c = Buffer.alloc(4); c.writeUInt32BE(crc(td)); return Buffer.concat([l, td, c]); };
+const pngDe = (w, h, ruido) => { // PNG em tons de cinza; "ruido" evita compressão total (simula traços)
+  const raw = Buffer.alloc((w + 1) * h); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) raw[y * (w + 1) + 1 + x] = ruido ? (x * 31 + y * 17 + ((x * y) % 7) * 40) & 255 : 255;
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 0;
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+};
+const dataUrl = (b) => 'data:image/png;base64,' + b.toString('base64');
+const assin = pngDe(120, 60, true), branca = pngDe(120, 60, false);
+const AUT = { signatario: 'Joana Silva', parentesco: 'Filho(a)', documento: '123.456.789-09', aceite: true, assinatura: dataUrl(assin) };
+const termo = (await call('/autorizacao/termo', { token: ex })).data;
+assert.ok(termo.paragrafos.length >= 3 && termo.parentescos.includes('Filho(a)'));
+assert.equal((await call('/autorizacao/termo')).status, 401);
+assert.equal((await call('/pacientes/' + pac.id, { token: ex })).data.autorizacao, null);
+assert.equal((await call('/registros/' + reg.id, { token: ex })).data.paciente.autorizado, false);
+assert.equal((await call(`/pacientes/${pac.id}/autorizacao`, { token: ad, method: 'POST', body: AUT })).status, 403); // admin não coleta
+assert.equal((await call(`/pacientes/${pac.id}/autorizacao`, { token: ex, method: 'POST', body: { ...AUT, signatario: '' } })).status, 400);
+assert.equal((await call(`/pacientes/${pac.id}/autorizacao`, { token: ex, method: 'POST', body: { ...AUT, parentesco: 'Vizinho' } })).status, 400);
+assert.equal((await call(`/pacientes/${pac.id}/autorizacao`, { token: ex, method: 'POST', body: { ...AUT, aceite: false } })).status, 400);
+assert.equal((await call(`/pacientes/${pac.id}/autorizacao`, { token: ex, method: 'POST', body: { ...AUT, assinatura: 'data:image/png;base64,AAAA' } })).status, 400);
+assert.equal((await call(`/pacientes/${pac.id}/autorizacao`, { token: ex, method: 'POST', body: { ...AUT, assinatura: dataUrl(jpg) } })).status, 400);
+assert.equal((await call(`/pacientes/${pac.id}/autorizacao`, { token: ex, method: 'POST', body: { ...AUT, assinatura: dataUrl(branca) } })).status, 400); // quadro vazio
+const aut1 = await call(`/pacientes/${pac.id}/autorizacao`, { token: ex, method: 'POST', body: AUT });
+assert.equal(aut1.status, 201); assert.equal(aut1.data.signatario, 'Joana Silva'); assert.equal(aut1.data.documento, '•••09'); // documento mascarado na API
+const autGet = (await call(`/pacientes/${pac.id}/autorizacao`, { token: es })).data;
+assert.equal(autGet.atual.parentesco, 'Filho(a)'); assert.equal(autGet.historico.length, 1);
+assert.equal((await call(`/pacientes/${pac.id}/autorizacao`, { token: ad })).status, 403);
+const img = await call(`/pacientes/${pac.id}/autorizacao/assinatura`, { token: es });
+assert.equal(img.status, 200); assert.deepEqual(img.data, assin);
+assert.equal((await call(`/pacientes/${pac.id}/autorizacao/assinatura`, { token: ad })).status, 403);
+assert.equal((await call('/registros/' + reg.id, { token: ex })).data.paciente.autorizado, true);
+// nova assinatura substitui a anterior; revogação desativa
+assert.equal((await call(`/pacientes/${pac.id}/autorizacao`, { token: es, method: 'POST', body: { ...AUT, signatario: 'Pedro Silva', parentesco: 'Cônjuge / companheiro(a)', documento: '' } })).status, 201);
+const h2 = (await call(`/pacientes/${pac.id}/autorizacao`, { token: ex })).data;
+assert.equal(h2.atual.signatario, 'Pedro Silva'); assert.equal(h2.historico.length, 2); assert.equal(h2.historico.filter((a) => !a.revogadaEm).length, 1);
+// o PDF traz a autorização (e continua restrito a estomaterapeuta/admin)
+const pdfAut = await call(`/pacientes/${pac.id}/pdf`, { token: ad }); assert.equal(pdfAut.status, 200);
+assert.ok(pdfAut.data.length > 1000);
+assert.equal((await call(`/pacientes/${pac.id}/autorizacao/revogar`, { token: ad, method: 'POST' })).status, 403);
+assert.equal((await call(`/pacientes/${pac.id}/autorizacao/revogar`, { token: ex, method: 'POST' })).status, 200);
+assert.equal((await call(`/pacientes/${pac.id}/autorizacao/assinatura`, { token: ex })).status, 404);
+assert.equal((await call('/pacientes/' + pac.id, { token: ex })).data.autorizacao.revogadaEm != null, true);
+assert.equal((await call('/registros/' + reg.id, { token: ex })).data.paciente.autorizado, false);
+// deixa uma autorização ativa para a exclusão LGPD provar que a imagem da assinatura também é apagada
+assert.equal((await call(`/pacientes/${pac.id}/autorizacao`, { token: ex, method: 'POST', body: AUT })).status, 201);
+
 // --- auditoria registra acessos
 const aud = (await call('/auditoria', { token: ad })).data.map((a) => a.acao);
-for (const a of ['login', 'login_falhou', 'paciente_criado', 'foto_visualizada', 'registro_enviado', 'avaliacao', 'usuario_criado', 'relatorio_pdf', 'historico_pdf', 'seguranca_tentativa_captura', 'seguranca_tentativa_impressao', 'seguranca_tentativa_copia']) assert.ok(aud.includes(a), a);
+for (const a of ['login', 'login_falhou', 'paciente_criado', 'foto_visualizada', 'registro_enviado', 'avaliacao', 'usuario_criado', 'relatorio_pdf', 'historico_pdf', 'seguranca_tentativa_captura', 'seguranca_tentativa_impressao', 'seguranca_tentativa_copia', 'autorizacao_assinada', 'autorizacao_revogada', 'assinatura_visualizada']) assert.ok(aud.includes(a), a);
 
 // --- exclusão de paciente (LGPD) remove registros e fotos
 assert.equal((await call('/pacientes/' + pac.id, { token: es, method: 'DELETE' })).status, 403);
