@@ -28,17 +28,30 @@ function go(view, extra = {}) { state = { ...state, view, ...extra }; render(); 
 // Câmera dentro do app: usa a câmera ao vivo do navegador (getUserMedia). A foto nunca passa pelo
 // aplicativo de câmera do sistema, então não é gravada na galeria do aparelho; só existe na memória até o envio.
 const emAppEmbutido = () => /FBAN|FBAV|Instagram|Line\/|MicroMessenger|WhatsApp|Snapchat|Telegram|; wv\)|Claude/i.test(navigator.userAgent) || (/iPhone|iPad|iPod/.test(navigator.userAgent) && !/Safari\//.test(navigator.userAgent));
-function motivoCamera(e) {
+const ua = () => navigator.userAgent;
+const SO = () => (/iPhone|iPad|iPod/.test(ua()) || (/Macintosh/.test(ua()) && navigator.maxTouchPoints > 1) ? 'ios' : /Android/.test(ua()) ? 'android' : 'pc');
+const NAV = () => (/CriOS/.test(ua()) ? 'chrome-ios' : /FxiOS|Firefox/.test(ua()) ? 'firefox' : /EdgA|EdgiOS|Edg\//.test(ua()) ? 'edge' : /Chrome\//.test(ua()) ? 'chrome' : /Safari\//.test(ua()) ? 'safari' : 'outro');
+// Passo a passo para liberar a câmera, conforme o navegador/aparelho
+function ajudaPermissao() {
+  const so = SO(), nav = NAV();
+  if (nav === 'chrome-ios') return 'No iPhone: abra Ajustes › Chrome › e ative “Câmera”. Depois volte aqui e toque em “Tentar de novo”.';
+  if (so === 'ios' && nav === 'firefox') return 'No iPhone: abra Ajustes › Firefox › e ative “Câmera”. Depois volte aqui e toque em “Tentar de novo”.';
+  if (so === 'ios') return 'No iPhone: toque em “aA” na barra do endereço › Ajustes do Site › Câmera › Permitir. (Ou: Ajustes › Safari › Câmera › Perguntar.) Depois toque em “Tentar de novo”.';
+  if (nav === 'firefox') return 'No Firefox: toque no ícone de cadeado ao lado do endereço › Permissões › Câmera › Permitir (apague o bloqueio, se houver). Depois recarregue a página.';
+  if (so === 'android') return 'No Chrome do Android: toque no cadeado ao lado do endereço › Permissões › Câmera › Permitir. Se continuar bloqueado: Configurações do Android › Apps › Chrome › Permissões › Câmera › Permitir. Depois recarregue a página.';
+  return 'No computador: clique no ícone de cadeado ao lado do endereço › Configurações do site › Câmera › Permitir. Depois recarregue a página.';
+}
+function motivoCamera(e, perm) {
   const usar = 'Abra este endereço direto no Safari (iPhone) ou no Chrome (Android), fora de outros aplicativos.';
   if (!window.isSecureContext) return { texto: 'A câmera só funciona em conexão segura (https).', copiar: true };
   if (!navigator.mediaDevices?.getUserMedia) return { texto: `${emAppEmbutido() ? 'Este navegador embutido em outro aplicativo não permite usar a câmera.' : 'Este navegador não permite usar a câmera.'} ${usar}`, copiar: true };
   switch (e?.name) {
     case 'NotAllowedError': case 'SecurityError':
       return emAppEmbutido() ? { texto: `Este navegador embutido em outro aplicativo bloqueou a câmera. ${usar}`, copiar: true }
-        : { texto: 'A câmera está bloqueada para este site. Libere em: cadeado ao lado do endereço (Chrome), ou Ajustes › Safari › Câmera (iPhone). Depois toque em “Tentar de novo”.' };
-    case 'NotFoundError': case 'OverconstrainedError': return { texto: 'Nenhuma câmera foi encontrada neste aparelho.' };
-    case 'NotReadableError': case 'AbortError': return { texto: 'Não foi possível acessar a câmera. Feche outros aplicativos que a estejam usando e tente de novo.' };
-    default: return { texto: 'Não foi possível abrir a câmera.' };
+        : { texto: `A câmera está bloqueada para este site${perm === 'denied' ? '' : ' (o pedido de permissão foi negado ou não apareceu)'}. ${ajudaPermissao()}`, recarregar: true };
+    case 'NotFoundError': case 'OverconstrainedError': return { texto: SO() === 'pc' ? 'Nenhuma câmera foi encontrada neste computador. Use o celular para tirar a foto, ou conecte uma webcam.' : 'Nenhuma câmera foi encontrada neste aparelho.' };
+    case 'NotReadableError': case 'AbortError': return { texto: 'Não foi possível acessar a câmera. Feche outros aplicativos ou abas que a estejam usando e tente de novo.', recarregar: true };
+    default: return { texto: 'Não foi possível abrir a câmera. Toque em “Tentar de novo” ou recarregue a página.', recarregar: true };
   }
 }
 async function obterCamera() { // tenta do melhor para o mais simples; para ao ser negada
@@ -51,7 +64,7 @@ function abrirCamera() {
   return new Promise((resolve) => {
     const m = document.createElement('div'); m.className = 'cam';
     m.innerHTML = `<div class="cam-dica">🔒 Esta foto não é salva na galeria do aparelho</div><video playsinline muted autoplay></video><canvas hidden></canvas>
-      <div class="cam-msg" hidden><p></p><small></small><div class="cam-acoes"><button type="button" class="cam-retry">Tentar de novo</button><button type="button" class="cam-copy" hidden>Copiar endereço</button></div><a class="cam-diag" href="/camera-teste.html" target="_blank" rel="noopener">Testar a câmera do navegador</a></div>
+      <div class="cam-msg" hidden><p></p><small></small><div class="cam-acoes"><button type="button" class="cam-retry">Tentar de novo</button><button type="button" class="cam-reload" hidden>Recarregar página</button><button type="button" class="cam-copy" hidden>Copiar endereço</button></div><a class="cam-diag" href="/camera-teste.html" target="_blank" rel="noopener">Testar a câmera do navegador</a></div>
       <div class="cam-bar"><button type="button" class="cam-x">Cancelar</button><button type="button" class="cam-shot" aria-label="Capturar foto"></button><span></span></div>
       <div class="cam-bar" hidden><button type="button" class="cam-redo">Refazer</button><span></span><button type="button" class="cam-ok primary">Usar foto</button></div>`;
     document.body.appendChild(m);
@@ -60,16 +73,26 @@ function abrirCamera() {
     const fechar = (blob) => { stream?.getTracks().forEach((t) => t.stop()); m.remove(); resolve(blob || null); };
     const iniciar = async () => {
       msg.hidden = true;
+      let perm = '';
+      try { perm = (await navigator.permissions.query({ name: 'camera' })).state; } catch { /* nem todo navegador informa */ }
+      const demora = setTimeout(() => { // o pedido de permissão pode estar pendente ou escondido
+        if (stream) return;
+        $('p', msg).textContent = `Aguardando a permissão da câmera… Se nenhum aviso apareceu, ${ajudaPermissao().replace(/^No [^:]+: /, '')}`;
+        $('small', msg).textContent = ''; $('.cam-copy', msg).hidden = true; $('.cam-reload', msg).hidden = false; msg.hidden = false;
+      }, 8000);
       try {
-        stream = await obterCamera(); v.srcObject = stream;
+        if (perm === 'denied') { const e = new Error('permissão negada'); e.name = 'NotAllowedError'; throw e; }
+        stream = await obterCamera(); clearTimeout(demora); msg.hidden = true; v.srcObject = stream;
         try { await v.play(); } catch { /* a reprodução automática pode ser adiada pelo navegador; o quadro aparece em seguida */ }
       } catch (e) {
-        const r = motivoCamera(e); $('p', msg).textContent = r.texto; $('small', msg).textContent = e?.name ? `Detalhe técnico: ${e.name}` : '';
-        $('.cam-copy', msg).hidden = !r.copiar; msg.hidden = false;
+        clearTimeout(demora);
+        const r = motivoCamera(e, perm); $('p', msg).textContent = r.texto; $('small', msg).textContent = `Detalhe técnico: ${e?.name || 'erro'} · ${NAV()}/${SO()}${perm ? ' · permissão: ' + perm : ''}`;
+        $('.cam-copy', msg).hidden = !r.copiar; $('.cam-reload', msg).hidden = !r.recarregar; msg.hidden = false;
       }
     };
     $('.cam-x', m).onclick = () => fechar(null);
     $('.cam-retry', m).onclick = iniciar;
+    $('.cam-reload', m).onclick = () => location.reload();
     $('.cam-copy', m).onclick = async (ev) => { try { await navigator.clipboard.writeText(location.origin); ev.target.textContent = 'Endereço copiado'; } catch { ev.target.textContent = location.origin; } };
     $('.cam-shot', m).onclick = () => {
       if (!v.videoWidth) return;
