@@ -4,8 +4,8 @@
   "description": "Acompanhamento de lesões com devolutiva da estomaterapeuta",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#070d18",
-  "theme_color": "#0b1220",
+  "background_color": "#07100e",
+  "theme_color": "#0a1a18",
   "lang": "pt-BR",
   "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
 }
