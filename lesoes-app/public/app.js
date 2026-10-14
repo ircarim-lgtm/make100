@@ -179,7 +179,7 @@ function iniciarProtecao() {
   setInterval(atualizarMarca, 30000);
 }
 
-const LOGO = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>';
+const LOGO = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 18c3.4 0 4.4-4.4 7.2-6.3C13.4 9.9 16 10 20.5 5.5"/><circle cx="4.2" cy="18" r="1.5" fill="#ffd2c3" stroke="none"/><circle cx="20.5" cy="5.5" r="2.3" fill="#fff" stroke="none"/></svg>';
 const P = {
   home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>', user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>',
   out: '<path d="M9 21H5V3h4"/><path d="M16 17l5-5-5-5M21 12H9"/>', plus: '<path d="M12 5v14M5 12h14"/>',
@@ -191,7 +191,7 @@ const P = {
   inbox: '<path d="M4 13l2-8h12l2 8v6H4z"/><path d="M4 13h5l1 2h4l1-2h5"/>',
 };
 const I = (n) => `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n]}</svg>`;
-const hue = (t) => { let h = 0; for (const ch of String(t)) h = (h * 31 + ch.charCodeAt(0)) % 360; return h; };
+const hue = (t) => { let h = 0; for (const ch of String(t)) h = (h * 31 + ch.charCodeAt(0)) % 360; return [168, 182, 152, 14, 26, 196][h % 6]; };
 const limpo = (n) => String(n || '').replace(/\(.*?\)/g, '').replace(/^\s*(enf|dr|dra|sr|sra)\.?\s+/i, '').trim();
 const iniciais = (n) => { const p = (limpo(n) || '?').split(/\s+/); return ((p[0]?.[0] || '') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase(); };
 const avatar = (nome, tam = '') => `<span class="avatar ${tam}" style="--h:${hue(nome)}">${esc(iniciais(nome))}</span>`;
@@ -204,10 +204,10 @@ const SKELETON = '<div class="skel"><i></i><i></i><i></i></div>';
 
 const btnNav = (id, nome, ativo) => `<button id="${id}" class="${ativo ? 'ativo' : ''}" title="${nome}" aria-label="${nome}">${I(id === 'conta' ? 'user' : id)}<span>${nome}</span></button>`;
 function shell(inner) {
-  return `<aside class="side"><div class="brand"><span class="logo">${LOGO}</span><div><b>EvoluIA</b><small>Acompanhamento de lesões</small></div></div>
+  return `<aside class="side"><div class="brand"><span class="logo">${LOGO}</span><div><b>Evolu<i>IA</i></b><small>Acompanhamento de lesões</small></div></div>
     <nav class="nav">${btnNav('home', 'Início', state.view === 'home')}${btnNav('conta', 'Conta', state.view === 'conta')}${btnNav('out', 'Sair')}</nav>
     <div class="usercard">${avatar(user.nome, 'sm')}<div><b>${esc(user.nome)}</b><small>${PERFIL[user.perfil]}</small></div></div></aside>
-    <header class="appbar"><span class="logo">${LOGO}</span><h1>EvoluIA<small>${esc(user.nome)} · ${PERFIL[user.perfil]}</small></h1></header>
+    <header class="appbar"><span class="logo">${LOGO}</span><h1>Evolu<i>IA</i><small>${esc(user.nome)} · ${PERFIL[user.perfil]}</small></h1></header>
     <span id="badge" hidden></span><main>${inner}</main>`;
 }
 function bindShell() {
@@ -225,13 +225,17 @@ const bindRegs = () => $$('[data-reg]').forEach((c) => (c.onclick = () => go('re
 const bindPacs = () => $$('[data-pac]').forEach((c) => (c.onclick = () => go('paciente', { id: c.dataset.pac })));
 
 function renderLogin() {
-  $('#app').innerHTML = `<div class="login-wrap"><section class="login-hero"><div class="logo">${LOGO}</div>
-    <h1>Cada lesão, acompanhada de perto.</h1><p>Registre a foto, envie para a estomaterapeuta e receba a devolutiva dentro do app.</p>
-    <ul><li>${I('camera')} Foto da lesão em segundos</li><li>${I('spark')} Devolutiva da estomaterapeuta no app</li><li>${I('file')} Histórico e relatório em PDF</li></ul></section>
-    <form class="login" id="f"><div class="marca"><div class="logo">${LOGO}</div><h2>EvoluIA</h2><p>Acompanhamento de lesões</p></div>
+  $('#app').innerHTML = `<div class="login-wrap"><section class="login-hero">
+      <div class="lockup"><div class="logo">${LOGO}</div><div><span class="nome">Evolu<i>IA</i></span><small>Acompanhamento de lesões</small></div></div>
+      <p class="tag">Cada lesão, <em>acompanhada</em> de perto.</p>
+      <p class="sub">Registre a foto, envie para a estomaterapeuta e receba a devolutiva dentro do app.</p>
+      <ol class="jornada"><li style="--cor:#f2946f;--prox:#fbbf24"><b>Registro</b>Foto da lesão em segundos</li><li style="--cor:#fbbf24;--prox:#4fd1be"><b>Avaliação</b>Devolutiva da estomaterapeuta</li><li style="--cor:#4fd1be"><b>Evolução</b>Histórico e relatório em PDF</li></ol>
+    </section>
+    <form class="login" id="f"><h2>Entrar</h2><p class="intro">Acesse com seu usuário e senha.</p>
     <label>Usuário</label><input name="login" autocomplete="username" required>
     <label>Senha</label><input name="senha" type="password" autocomplete="current-password" required>
-    <div class="err" id="e"></div><button class="primary" style="width:100%">Entrar</button></form></div>`;
+    <div class="err" id="e"></div><button class="primary" style="width:100%">Entrar</button>
+    <p class="rodape">EvoluIA · seus dados são protegidos (LGPD)</p></form></div>`;
   $('#f').onsubmit = async (ev) => {
     ev.preventDefault(); const f = new FormData(ev.target);
     try {
