@@ -179,7 +179,7 @@ function iniciarProtecao() {
   setInterval(atualizarMarca, 30000);
 }
 
-const LOGO = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 18c3.4 0 4.4-4.4 7.2-6.3C13.4 9.9 16 10 20.5 5.5"/><circle cx="4.2" cy="18" r="1.5" fill="#ffd2c3" stroke="none"/><circle cx="20.5" cy="5.5" r="2.3" fill="#fff" stroke="none"/></svg>';
+const LOGO = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><g transform=\"rotate(-45 12 12)\"><rect x=\"2\" y=\"7\" width=\"20\" height=\"10\" rx=\"5\"/><path d=\"M9.2 7v10M14.8 7v10\"/><circle cx=\"12\" cy=\"10.2\" r=\".55\" fill=\"#ffd2c3\" stroke=\"none\"/><circle cx=\"12\" cy=\"12\" r=\".55\" fill=\"#ffd2c3\" stroke=\"none\"/><circle cx=\"12\" cy=\"13.8\" r=\".55\" fill=\"#ffd2c3\" stroke=\"none\"/></g></svg>';
 const P = {
   home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>', user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>',
   out: '<path d="M9 21H5V3h4"/><path d="M16 17l5-5-5-5M21 12H9"/>', plus: '<path d="M12 5v14M5 12h14"/>',
