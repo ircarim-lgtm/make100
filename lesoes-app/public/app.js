@@ -118,28 +118,101 @@ async function baixarPdf(path, nome) {
 }
 
 // Ditado por voz (reconhecimento de fala do navegador, pt-BR). Campos marcados com data-voz ganham um botão.
+// ---------- Ditado por voz ----------
+// Reconhecimento de fala do navegador (pt-BR). Cada campo marcado com data-voz ganha um microfone dentro do campo.
+// Modos: (vazio/texto) texto livre · nome · codigo (atendimento, leito) · digitos (CPF/RG) · num · data · opcao (lista) · busca.
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const semAcento = (t) => String(t).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const N_UN = { zero: 0, um: 1, uma: 1, primeiro: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10, onze: 11, doze: 12, treze: 13, catorze: 14, quatorze: 14, quinze: 15, dezesseis: 16, dezessete: 17, dezoito: 18, dezenove: 19 };
+const N_DZ = { vinte: 20, trinta: 30, quarenta: 40, cinquenta: 50, sessenta: 60, setenta: 70, oitenta: 80, noventa: 90 };
+const N_CT = { cem: 100, cento: 100, duzentos: 200, duzentas: 200, trezentos: 300, trezentas: 300, quatrocentos: 400, quatrocentas: 400, quinhentos: 500, quinhentas: 500, seiscentos: 600, seiscentas: 600, setecentos: 700, setecentas: 700, oitocentos: 800, oitocentas: 800, novecentos: 900, novecentas: 900 };
+const ehNumero = (w) => w in N_UN || w in N_DZ || w in N_CT || w === 'mil';
+// "doze" → "12", "mil novecentos e quarenta" → "1940" (só troca sequências de números por extenso)
+function numerosPorExtenso(txt, digitoADigito = false) {
+  const tk = String(txt).split(/\s+/).filter(Boolean), out = []; let i = 0;
+  while (i < tk.length) {
+    const w = semAcento(tk[i]).replace(/[.,;!?]/g, '');
+    if (!ehNumero(w)) { out.push(tk[i]); i++; continue; }
+    let total = 0, atual = 0; const inicio = i, digitos = [];
+    while (i < tk.length) {
+      const x = semAcento(tk[i]).replace(/[.,;!?]/g, '');
+      if (x === 'e' && i + 1 < tk.length && ehNumero(semAcento(tk[i + 1]).replace(/[.,;!?]/g, ''))) { i++; continue; }
+      if (!ehNumero(x)) break;
+      if (x === 'mil') { total += (atual || 1) * 1000; atual = 0; } else atual += N_UN[x] ?? N_DZ[x] ?? N_CT[x];
+      if (x in N_UN && N_UN[x] <= 9) digitos.push(N_UN[x]); else digitos.push(null);
+      i++;
+    }
+    // em códigos (atendimento, CPF), “um dois três” são dígitos soltos: 123, e não a soma
+    out.push(digitoADigito && digitos.length > 1 && digitos.every((d) => d !== null) ? digitos.join('') : String(total + atual));
+  }
+  return out.join(' ');
+}
+const MESES = ['janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+function dataFalada(txt) { // → aaaa-mm-dd ou ''
+  const t = semAcento(numerosPorExtenso(txt)).replace(/[.,]/g, ' ');
+  let d, m, y, r;
+  if ((r = t.match(/(\d{1,2})\s*[\/\-]\s*(\d{1,2})\s*[\/\-]\s*(\d{4})/))) [, d, m, y] = r;
+  else if ((r = t.match(/(\d{1,2})\s+(?:de\s+)?([a-z]+)\s+(?:de\s+)?(\d{4})/)) && MESES.includes(r[2])) { d = r[1]; m = MESES.indexOf(r[2]) + 1; y = r[3]; }
+  else if ((r = t.match(/(\d{1,2})\s+(?:de\s+)?(\d{1,2})\s+(?:de\s+)?(\d{4})/))) [, d, m, y] = r;
+  if (!d || +d < 1 || +d > 31 || +m < 1 || +m > 12) return '';
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+const radical = (w) => w.replace(/\(a\)/g, '').replace(/[aeo]s?$/, '');
+function opcaoFalada(sel, txt) { // escolhe a opção da lista que mais combina com o que foi dito
+  const dito = semAcento(numerosPorExtenso(txt)).replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter((w) => w.length > 1 || /\d/.test(w)).map(radical);
+  let melhor = null, pontos = 0;
+  for (const o of sel.options) {
+    if (!o.value && !o.text.trim().replace('—', '')) continue;
+    const palavras = semAcento(o.text).replace(/\(a\)/g, '').replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean).map(radical);
+    const p = palavras.filter((w) => dito.includes(w)).length / palavras.length + (dito.join(' ') === palavras.join(' ') ? 1 : 0);
+    if (p > pontos) { pontos = p; melhor = o; }
+  }
+  return pontos >= 0.5 ? melhor : null;
+}
+const titulo = (t) => t.toLowerCase().split(/\s+/).map((w, i) => (i > 0 && /^(da|de|do|das|dos|e)$/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1))).join(' ');
+// transforma o que foi falado no valor do campo, conforme o modo
+function valorFalado(el, modo, fala) {
+  let t = fala.trim().replace(/[.!?]+$/, '');
+  if (modo === 'nome') return titulo(t);
+  if (modo === 'codigo') return numerosPorExtenso(t, true).replace(/[^\w\/\-.]/g, '').toUpperCase();
+  if (modo === 'digitos') return numerosPorExtenso(t, true).replace(/\D/g, '');
+  if (modo === 'num') { const r = numerosPorExtenso(t).match(/\d+/); return r ? r[0] : ''; }
+  if (modo === 'busca') return t;
+  return t;
+}
+let vozAtiva = null;
+const MIC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
 function habilitarVoz() {
   if (!SR) return;
   $$('[data-voz]').forEach((el) => {
-    const b = document.createElement('button'); b.type = 'button'; b.className = 'mic small'; b.textContent = '🎤 Ditar';
-    b.title = 'O áudio é processado pelo serviço de voz do navegador (Google/Apple), não pelo app.';
-    el.insertAdjacentElement('afterend', b);
+    if (el.dataset.vozOk) return; el.dataset.vozOk = '1';
+    const modo = el.dataset.voz || 'texto', longo = el.tagName === 'TEXTAREA';
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'mic'; b.innerHTML = MIC;
+    b.setAttribute('aria-label', 'Preencher por voz'); b.title = 'Preencher por voz. O áudio é processado pelo serviço de voz do navegador (Google/Apple), não pelo app.';
+    const ancora = el.closest('.search') ? el : el;
+    const w = document.createElement('span'); w.className = 'vz'; ancora.replaceWith(w); w.append(el, b);
+    const aviso = (msg) => { let a = w.nextElementSibling; if (!a?.classList.contains('vz-msg')) { a = document.createElement('small'); a.className = 'vz-msg'; w.after(a); } a.textContent = msg; clearTimeout(a._t); a._t = setTimeout(() => a.remove(), 5000); };
     let rec = null;
-    const parar = () => { rec = null; b.textContent = '🎤 Ditar'; b.classList.remove('rec'); };
+    const parar = () => { rec = null; if (vozAtiva === parar) vozAtiva = null; b.classList.remove('rec'); b.setAttribute('aria-pressed', 'false'); b.title = 'Preencher por voz'; };
+    const aplicar = (fala) => {
+      if (modo === 'data') { const v = dataFalada(fala); if (!v) return aviso(`Não entendi a data (“${fala}”). Diga, por exemplo: 2 de março de 1940.`); el.value = v; }
+      else if (modo === 'opcao') { const o = opcaoFalada(el, fala); if (!o) return aviso(`Não entendi (“${fala}”). Opções: ${[...el.options].map((x) => x.text).filter((x) => x && x !== '—' && !/^Selecione/.test(x)).join(', ')}.`); el.value = o.value || o.text; }
+      else {
+        const v = valorFalado(el, modo, fala);
+        if (modo === 'num' && !v) return aviso(`Não entendi o número (“${fala}”).`);
+        el.value = longo ? (el.value ? el.value.replace(/\s*$/, ' ') : '') + v : v;
+      }
+      el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
     b.onclick = () => {
       if (rec) { rec.stop(); return; }
-      rec = new SR(); rec.lang = 'pt-BR'; rec.continuous = true; rec.interimResults = false;
-      rec.onresult = (ev) => {
-        for (let i = ev.resultIndex; i < ev.results.length; i++) {
-          if (!ev.results[i].isFinal) continue;
-          const t = ev.results[i][0].transcript.trim();
-          el.value = (el.value ? el.value.replace(/\s*$/, ' ') : '') + t;
-        }
-      };
-      rec.onerror = (e) => { if (e.error === 'not-allowed') alert('Permita o uso do microfone no navegador para ditar.'); else if (e.error !== 'no-speech' && e.error !== 'aborted') alert('Não foi possível usar o ditado: ' + e.error); };
+      vozAtiva?.();
+      rec = new SR(); rec.lang = 'pt-BR'; rec.continuous = longo; rec.interimResults = false;
+      rec.onresult = (ev) => { for (let i = ev.resultIndex; i < ev.results.length; i++) if (ev.results[i].isFinal) aplicar(ev.results[i][0].transcript); };
+      rec.onerror = (e) => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') aviso('Permita o uso do microfone no navegador para ditar.'); else if (e.error === 'no-speech') aviso('Não ouvi nada. Toque no microfone e fale.'); else if (e.error !== 'aborted') aviso('Não foi possível usar a voz: ' + e.error); };
       rec.onend = parar;
-      try { rec.start(); b.textContent = '⏹ Parar'; b.classList.add('rec'); } catch { parar(); }
+      const r = rec;
+      try { r.start(); vozAtiva = () => { try { r.stop(); } catch { /* já parado */ } }; b.classList.add('rec'); b.setAttribute('aria-pressed', 'true'); b.title = 'Ouvindo… toque para parar'; } catch { parar(); }
     };
   });
 }
@@ -207,7 +280,7 @@ const P = {
   home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>', user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>',
   out: '<path d="M9 21H5V3h4"/><path d="M16 17l5-5-5-5M21 12H9"/>', plus: '<path d="M12 5v14M5 12h14"/>',
   users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.7-3.4 3.2-5 6.5-5s5.8 1.6 6.5 5"/><circle cx="17.5" cy="9" r="2.5"/><path d="M17 14.5c2.6.2 4.3 1.6 4.8 4.5"/>',
-  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', check: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.5"/>', tick: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>', clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', check: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.5"/>', tick: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>', image: '<rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="M4 18l5-5 4 4 3-3 4 4"/>',
   chev: '<path d="M9 6l6 6-6 6"/>', file: '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/>',
   spark: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>', camera: '<path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
@@ -303,10 +376,10 @@ async function homeExam() {
     ${modoSwitch()}
     <div class="kpis">${kpi('users', 'Pacientes', pacs.length)}${kpi('clock', 'Aguardando avaliação', aguardando, 'warn')}${user.perfil === 'examinador' ? kpi('check', 'Novas devolutivas', novas, 'ok') : ''}</div>
     <div class="grid2"><section><div class="sec-h"><h2>Pacientes</h2></div>
-      <div class="search">${I('search')}<input id="q" placeholder="Buscar por nome, atendimento ou setor" value="${esc(q)}"></div>
+      <div class="search">${I('search')}<input id="q" placeholder="Buscar por nome, atendimento ou setor" value="${esc(q)}" data-voz="busca"></div>
       ${pacs.map(cardPaciente).join('') || vazio('users', 'Nenhum paciente encontrado', 'Cadastre o primeiro em “Novo paciente”.')}</section>
     <section><div class="sec-h"><h2>Últimos registros</h2></div>${regs.slice(0, 10).map(cardRegistro).join('') || vazio('camera', 'Sem registros ainda', 'Abra um paciente e registre a primeira lesão.')}</section></div>`);
-  bindShell(); bindRegs(); bindPacs();
+  bindShell(); bindRegs(); bindPacs(); habilitarVoz();
   $('#novo').onclick = () => go('novoPaciente');
   $('#q').onchange = (e) => { state.q = e.target.value; render(); };
 }
@@ -320,8 +393,8 @@ async function homeAdmin() {
   if (tab === 'usuarios') {
     const us = await api('/usuarios');
     body = `<form class="card" id="nu"><h3 style="margin-top:0">Novo usuário</h3>
-      <div class="row"><div><label>Nome</label><input name="nome" required></div><div><label>Login</label><input name="login" required autocapitalize="none"></div></div>
-      <div class="row"><div><label>Perfil</label><select name="perfil"><option value="examinador">Examinador</option><option value="estomaterapeuta">Estomaterapeuta</option><option value="admin">Administrador</option></select></div>
+      <div class="row"><div><label>Nome</label><input name="nome" required data-voz="nome"></div><div><label>Login</label><input name="login" required autocapitalize="none"></div></div>
+      <div class="row"><div><label>Perfil</label><select name="perfil" data-voz="opcao"><option value="examinador">Examinador</option><option value="estomaterapeuta">Estomaterapeuta</option><option value="admin">Administrador</option></select></div>
       <div><label>Senha inicial (mín. 8)</label><input name="senha" type="password" minlength="8" required autocomplete="new-password"></div></div>
       <div class="err" id="e"></div><button class="primary">Criar usuário</button></form>
       ${us.map((u) => `<div class="card"><div class="top"><div><b>${esc(u.nome)}</b> <span class="muted">(${esc(u.login)})</span>
@@ -330,7 +403,7 @@ async function homeAdmin() {
         ${u.id !== user.id ? `<button class="small ${u.ativo ? 'danger' : ''}" data-ativo="${u.id}" data-v="${u.ativo ? 0 : 1}">${u.ativo ? 'Desativar' : 'Reativar'}</button>` : ''}</div></div></div>`).join('')}`;
   } else if (tab === 'pacientes') {
     const ps = await api('/pacientes?q=' + encodeURIComponent(state.q || ''));
-    body = `<input id="q" placeholder="Buscar paciente" value="${esc(state.q || '')}"><div class="spacer"></div>
+    body = `<input id="q" placeholder="Buscar paciente" value="${esc(state.q || '')}" data-voz="busca"><div class="spacer"></div>
       <p class="muted">Excluir remove o paciente, os registros e as fotos de forma definitiva (direito de eliminação).</p>
       ${ps.map((p) => `<div class="card top"><div><b>${esc(p.nome)}</b><div class="muted">Atend. ${esc(p.prontuario)}</div></div><div class="row nofill"><button class="small" data-pdf="${p.id}" data-at="${esc(p.prontuario)}">PDF</button><button class="small danger" data-del="${p.id}" data-nome="${esc(p.nome)}">Excluir</button></div></div>`).join('') || '<p class="muted">Nenhum paciente.</p>'}`;
   } else {
@@ -339,7 +412,7 @@ async function homeAdmin() {
       `<tr class="${String(l.acao).startsWith('seguranca_') ? 'alerta' : ''}"><td>${fmt(l.em)}</td><td>${esc(l.user_nome || '—')}</td><td>${esc(l.acao)}</td><td>${esc(l.alvo || '')}</td></tr>`).join('')}</table></div>`;
   }
   $('#app').innerHTML = shell(`${hero('Administração', 'Usuários, privacidade e auditoria')}${tabs}${body}`);
-  bindShell();
+  bindShell(); habilitarVoz();
   $$('[data-t]').forEach((b) => (b.onclick = () => go('home', { tab: b.dataset.t, q: '' })));
   const nu = $('#nu');
   if (nu) nu.onsubmit = async (ev) => {
@@ -381,15 +454,15 @@ function renderConta() {
 // ---------- Paciente ----------
 function renderNovoPaciente() {
   $('#app').innerHTML = shell(`<form class="card pagina-form" id="f"><h2>Cadastrar paciente</h2>
-    <label>Nome completo *</label><input name="nome" required>
-    <div class="row tres"><div><label>Atendimento *</label><input name="prontuario" required></div><div><label>Setor *</label><input name="setor" required placeholder="Ex.: UTI, Clínica Médica"></div><div><label>Leito</label><input name="leito" placeholder="Ex.: 12A"></div></div>
-    <div class="row"><div><label>Data de nascimento</label><input name="dataNascimento" type="date"></div>
-      <div><label>Sexo</label><select name="sexo"><option value="">—</option><option>Feminino</option><option>Masculino</option><option>Outro</option></select></div>
-      <div><label>Escala de Braden</label><input name="braden" type="number" min="6" max="23" placeholder="6 a 23"></div></div>
+    <label>Nome completo *</label><input name="nome" required data-voz="nome">
+    <div class="row tres"><div><label>Atendimento *</label><input name="prontuario" required data-voz="codigo"></div><div><label>Setor *</label><input name="setor" required placeholder="Ex.: UTI, Clínica Médica" data-voz="nome"></div><div><label>Leito</label><input name="leito" placeholder="Ex.: 12A" data-voz="codigo"></div></div>
+    <div class="row"><div><label>Data de nascimento</label><input name="dataNascimento" type="date" data-voz="data"></div>
+      <div><label>Sexo</label><select name="sexo" data-voz="opcao"><option value="">—</option><option>Feminino</option><option>Masculino</option><option>Outro</option></select></div>
+      <div><label>Escala de Braden</label><input name="braden" type="number" min="6" max="23" placeholder="6 a 23" data-voz="num"></div></div>
     <label>Comorbidades / observações clínicas</label><textarea name="comorbidades" data-voz></textarea>
     <h3>Consentimento (LGPD)</h3>
     <label class="check"><input type="checkbox" name="consentimento" required><span>O paciente ou responsável legal autorizou o registro fotográfico da lesão e o tratamento dos dados para acompanhamento clínico.</span></label>
-    <label>Quem consentiu (nome e vínculo) *</label><input name="consentimentoPor" required placeholder="Ex.: a própria paciente / Maria (filha)">
+    <label>Quem consentiu (nome e vínculo) *</label><input name="consentimentoPor" required placeholder="Ex.: a própria paciente / Maria (filha)" data-voz="texto">
     <div class="err" id="e"></div><div class="row nofill"><button type="button" id="cancel">Cancelar</button><button class="primary">Salvar paciente</button></div></form>`);
   bindShell(); habilitarVoz(); $('#cancel').onclick = () => go('home');
   $('#f').onsubmit = async (ev) => {
@@ -405,16 +478,16 @@ async function renderAssinatura() {
   $('#app').innerHTML = shell(`<form class="card pagina-form" id="f"><h2>Autorização de uso de imagem</h2>
     <div class="muted">Paciente: <b>${esc(p.nome)}</b> · Atend. ${esc(p.prontuario)}</div>
     <div class="termo"><h3>${esc(termo.titulo)}</h3>${termo.paragrafos.map((t) => `<p>${esc(t)}</p>`).join('')}<small>Termo versão ${esc(termo.versao)}</small></div>
-    <label>Nome de quem está assinando *</label><input name="signatario" required autocomplete="off">
-    <div class="row"><div><label>Grau de parentesco / vínculo *</label><select name="parentesco" required><option value="">Selecione…</option>${termo.parentescos.map((x) => `<option>${esc(x)}</option>`).join('')}</select></div>
-      <div><label>CPF ou RG (opcional)</label><input name="documento" inputmode="numeric" autocomplete="off"></div></div>
+    <label>Nome de quem está assinando *</label><input name="signatario" required autocomplete="off" data-voz="nome">
+    <div class="row"><div><label>Grau de parentesco / vínculo *</label><select name="parentesco" required data-voz="opcao"><option value="">Selecione…</option>${termo.parentescos.map((x) => `<option>${esc(x)}</option>`).join('')}</select></div>
+      <div><label>CPF ou RG (opcional)</label><input name="documento" inputmode="numeric" autocomplete="off" data-voz="digitos"></div></div>
     <label>Assinatura * <span class="muted">(use o dedo na área abaixo)</span></label>
     <div class="sig"><canvas id="sig" aria-label="Área de assinatura"></canvas><span class="sig-dica" id="sigDica">Assine aqui</span></div>
     <div class="sig-acoes"><button type="button" id="limpar">Limpar assinatura</button></div>
     <label class="check"><input type="checkbox" name="aceite" required><span>Li e concordo com o termo acima.</span></label>
     <div class="err" id="e"></div>
     <div class="row nofill"><button type="button" id="cancel">Cancelar</button><button class="primary" id="ok">Confirmar assinatura</button></div></form>`);
-  bindShell();
+  bindShell(); habilitarVoz();
   $('#cancel').onclick = () => go('paciente', { id: p.id });
   const cv = $('#sig'), ctx = cv.getContext('2d');
   let desenhando = false, ultimo = null, tracado = 0;
@@ -509,7 +582,7 @@ async function renderPaciente() {
 // ---------- Registro ----------
 function renderNovoRegistro() {
   $('#app').innerHTML = shell(`<form class="card pagina-form" id="f"><h2>Nova lesão</h2>
-    <label>Localização anatômica</label><input name="local" data-voz placeholder="Ex.: região sacral, calcâneo direito">
+    <label>Localização anatômica</label><input name="local" data-voz="texto" placeholder="Ex.: região sacral, calcâneo direito">
     <label>Observações (tamanho, secreção, dor, curativo atual...)</label><textarea name="observacoes" data-voz></textarea>
     <div class="err" id="e"></div><div class="row nofill"><button type="button" id="cancel">Cancelar</button><button class="primary">Continuar e anexar foto</button></div></form>`);
   bindShell(); habilitarVoz(); $('#cancel').onclick = () => go('paciente', { id: state.pacienteId });
@@ -545,10 +618,10 @@ async function renderRegistro() {
      ${user.perfil !== 'examinador' ? `<button class="primary" id="pdf">${I('file')} Baixar relatório (PDF)</button>` : ''}</div>`
    : r.status === 'enviado' && isEx ? `<div class="card">${vazio('clock', 'Aguardando avaliação da estomaterapeuta', 'Você será avisado quando a devolutiva chegar.')}</div>` : ''}
   ${user.perfil === 'estomaterapeuta' && r.status === 'enviado' ? `<form class="card" id="av"><h2>Sua avaliação</h2>
-    <label>Classificação da lesão</label><select name="estagio"><option value="">—</option>${Object.entries(ESTAGIO).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
+    <label>Classificação da lesão</label><select name="estagio" data-voz="opcao"><option value="">—</option>${Object.entries(ESTAGIO).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
     <label>Tratamento indicado *</label><textarea name="tratamento" required data-voz placeholder="Limpeza, cobertura, frequência de troca..."></textarea>
     <label>Orientações *</label><textarea name="orientacoes" required data-voz placeholder="Reposicionamento, superfície de suporte, nutrição, sinais de alerta..."></textarea>
-    <label>Reavaliar em (dias)</label><input name="retornoDias" type="number" min="0" max="365">
+    <label>Reavaliar em (dias)</label><input name="retornoDias" type="number" min="0" max="365" data-voz="num">
     <div class="err" id="e2"></div><button class="primary" style="width:100%">Enviar devolutiva</button></form>` : ''}
   <div class="acoes"><button id="back">← Voltar</button><button id="hist">Ver histórico do paciente</button></div></div></div>`);
   bindShell(); habilitarVoz();

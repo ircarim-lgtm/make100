@@ -296,3 +296,20 @@ h2 { font-weight:600; letter-spacing:-.015em; } .appbar h1 { font-weight:600; fo
 .tabs button.on,.stepper li.now span { background:var(--grad); }
 .tl-dot.enviado { border-color:var(--warn); } .tl-dot.avaliado { border-color:var(--ok); }
 .side .brand b i,.appbar h1 i { font-style:normal; color:var(--acc); }
+
+/* Microfone dentro de cada campo (ditado por voz) */
+.vz { position:relative; display:block; }
+.vz > input,.vz > textarea,.vz > select { padding-right:48px; }
+.vz .mic { position:absolute; right:6px; top:50%; width:34px; height:34px; margin:-17px 0 0; padding:0; display:grid; place-items:center; color:var(--mut); background:transparent; border:1px solid transparent; border-radius:10px; box-shadow:none; transform:none; }
+.vz .mic:hover { color:var(--c); background:color-mix(in srgb,var(--c) 12%,transparent); transform:none; }
+.vz .mic svg { width:18px; height:18px; }
+.vz textarea ~ .mic { top:8px; margin-top:0; }
+.vz > select { padding-right:72px; } .vz > select ~ .mic { right:34px; }
+.vz > input[type=date] { padding-right:76px; } .vz > input[type=date] ~ .mic { right:38px; }
+.vz > input[type=number] { -moz-appearance:textfield; appearance:textfield; } .vz > input[type=number]::-webkit-inner-spin-button,.vz > input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+.search .vz input { padding-left:40px; }
+.mic.rec,.vz .mic.rec { color:#fff; background:var(--err); border-color:transparent; animation:pulso-rec 1.2s ease-in-out infinite; }
+.vz-msg { display:block; margin:5px 2px 0; color:var(--warn); font-size:12.5px; }
+.vz > input[type=date] { padding-right:68px; } .vz > input[type=date] ~ .mic { right:32px; }
+@media (max-width:520px) { .row.tres > :nth-child(2) { order:3; flex:1 1 100%; } }
+.vz > input[type=date] { padding-right:62px; padding-left:11px; font-size:15px; letter-spacing:-.01em; }
