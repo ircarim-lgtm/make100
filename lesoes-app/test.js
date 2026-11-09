@@ -3,6 +3,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import * as webpush from 'web-push';
+const vapid = webpush.generateVAPIDKeys();
+process.env.VAPID_SUBJECT = 'https://exemplo.test'; process.env.VAPID_PUBLIC_KEY = vapid.publicKey; process.env.VAPID_PRIVATE_KEY = vapid.privateKey;
+const enviosPush = []; let falhaPush = null;
+globalThis.__pushTeste = async (sub, payload) => { if (falhaPush === sub.endpoint) throw Object.assign(new Error('gone'), { statusCode: 410 }); enviosPush.push({ endpoint: sub.endpoint, payload }); };
+
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lesoes-'));
 process.env.DATA_DIR = dir;
 
@@ -224,6 +230,31 @@ assert.equal((await call('/pacientes/' + pac.id, { token: ex })).data.autorizaca
 assert.equal((await call('/registros/' + reg.id, { token: ex })).data.paciente.autorizado, false);
 // deixa uma autorização ativa para a exclusão LGPD provar que a imagem da assinatura também é apagada
 assert.equal((await call(`/pacientes/${pac.id}/autorizacao`, { token: ex, method: 'POST', body: AUT })).status, 201);
+
+// --- alertas push de segurança para o administrador
+const SUB = (n) => ({ endpoint: 'https://push.exemplo.test/' + n, keys: { p256dh: 'BP' + n, auth: 'au' + n } });
+assert.equal((await call('/push/chave', { token: ex })).status, 403); // só o administrador
+const chave = (await call('/push/chave', { token: ad })).data; assert.equal(chave.ativo, true); assert.equal(chave.chave, vapid.publicKey);
+assert.equal((await call('/push/inscrever', { token: ex, method: 'POST', body: SUB('a') })).status, 403);
+assert.equal((await call('/push/inscrever', { token: ad, method: 'POST', body: { endpoint: 'http://inseguro', keys: { p256dh: 'x', auth: 'y' } } })).status, 400);
+assert.equal((await call('/push/inscrever', { token: ad, method: 'POST', body: SUB('a') })).status, 201);
+assert.equal((await call('/push/inscrever', { token: ad, method: 'POST', body: SUB('b') })).status, 201);
+assert.equal((await call('/push/teste', { token: ad, method: 'POST' })).data.enviados, 2);
+enviosPush.length = 0;
+await call('/seguranca/evento', { token: es, method: 'POST', body: { tipo: 'tentativa_captura', detalhe: 'PrintScreen' } });
+assert.equal(enviosPush.length, 2); // um aviso para cada aparelho do admin
+assert.match(enviosPush[0].payload.texto, /Estomaterapeuta.*estomaterapeuta.*tentou capturar a tela/);
+assert.doesNotMatch(JSON.stringify(enviosPush), /Maria|123|sacral/); // nada clínico no aviso
+await call('/seguranca/evento', { token: es, method: 'POST', body: { tipo: 'tentativa_copia' } });
+assert.equal(enviosPush.length, 2); // no máximo um aviso por minuto por pessoa
+enviosPush.length = 0; falhaPush = SUB('b').endpoint;
+await call('/seguranca/evento', { token: ex, method: 'POST', body: { tipo: 'tentativa_impressao', detalhe: 'menu' } }); // ex já havia gerado eventos há <1 min: sem aviso
+assert.equal(enviosPush.length, 0);
+assert.equal((await call('/push/cancelar', { token: ad, method: 'POST', body: { endpoint: SUB('a').endpoint } })).status, 200);
+assert.equal((await call('/push/teste', { token: ad, method: 'POST' })).data.enviados, 0); // 'b' falha (410) e é removida; 'a' foi cancelada
+falhaPush = null;
+assert.equal((await call('/push/teste', { token: ad, method: 'POST' })).data.enviados, 0);
+for (const f of ['/apple-touch-icon.png', '/icon-192.png', '/icon-512.png']) assert.equal((await fetch(base + f)).status, 200);
 
 // --- auditoria registra acessos
 const aud = (await call('/auditoria', { token: ad })).data.map((a) => a.acao);

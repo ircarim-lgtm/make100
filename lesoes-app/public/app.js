@@ -433,6 +433,39 @@ async function homeAdmin() {
 }
 
 // ---------- Conta ----------
+// Alertas push do administrador (Web Push)
+const chaveParaBytes = (b64) => Uint8Array.from(atob((b64 + '='.repeat((4 - (b64.length % 4)) % 4)).replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+async function iniciarPush() {
+  const st = $('#pst'), btn = $('#pushbtn'), teste = $('#pushteste'), erro = $('#pe');
+  const msg = (t) => { st.textContent = t; };
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+    return msg(SO() === 'ios' ? 'indisponível aqui. No iPhone, adicione o app à Tela de Início (compartilhar › Adicionar à Tela de Início) e abra por lá.' : 'este navegador não suporta notificações push.');
+  }
+  let cfg; try { cfg = await api('/push/chave'); } catch (e) { return msg(e.message); }
+  if (!cfg.ativo) return msg('não configurado no servidor.');
+  const reg = await navigator.serviceWorker.ready;
+  const atual = async () => reg.pushManager.getSubscription();
+  const mostrar = async () => {
+    const sub = await atual();
+    if (Notification.permission === 'denied') { msg('bloqueado nas configurações do navegador (libere as notificações deste site).'); btn.hidden = true; teste.hidden = true; return; }
+    msg(sub ? 'ativado' : 'desativado'); btn.hidden = false; btn.textContent = sub ? 'Desativar alertas neste aparelho' : 'Ativar alertas neste aparelho'; btn.className = sub ? '' : 'primary'; teste.hidden = !sub;
+  };
+  btn.onclick = async () => {
+    erro.textContent = '';
+    try {
+      const sub = await atual();
+      if (sub) { await api('/push/cancelar', { method: 'POST', body: { endpoint: sub.endpoint } }); await sub.unsubscribe(); }
+      else {
+        if (await Notification.requestPermission() !== 'granted') throw new Error('Permissão de notificação não concedida.');
+        const novo = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chaveParaBytes(cfg.chave) });
+        await api('/push/inscrever', { method: 'POST', body: novo.toJSON() });
+      }
+    } catch (e) { erro.textContent = e.message; }
+    mostrar();
+  };
+  teste.onclick = async () => { erro.textContent = ''; try { const r = await api('/push/teste', { method: 'POST' }); erro.innerHTML = r.enviados ? '<span class="okmsg">Notificação enviada. Ela deve aparecer em instantes.</span>' : 'Nenhuma notificação foi enviada. Desative e ative de novo.'; } catch (e) { erro.textContent = e.message; } };
+  mostrar();
+}
 function renderConta() {
   const podeAviso = 'Notification' in window && user.perfil !== 'admin';
   $('#app').innerHTML = shell(`<form class="card pagina-form" id="f"><h2>Minha conta</h2><div class="muted">${esc(user.nome)} · ${esc(user.login)} · ${PERFIL[user.perfil]}</div>
@@ -441,8 +474,12 @@ function renderConta() {
     <div class="err" id="e"></div><button class="primary">Salvar nova senha</button></form>
     ${podeAviso ? `<div class="card"><h3 style="margin-top:0">Avisos no aparelho</h3>
       <p class="muted">Receba um aviso quando chegar um caso novo ou uma devolutiva, enquanto o app estiver aberto. Status: <b id="np">${Notification.permission === 'granted' ? 'ativados' : 'desativados'}</b></p>
-      <button id="avisos">Ativar avisos</button></div>` : ''}`);
-  bindShell();
+      <button id="avisos">Ativar avisos</button></div>` : ''}
+    ${user.perfil === 'admin' ? `<div class="card" id="pushcard"><h3 style="margin-top:0">Alertas de segurança</h3>
+      <p class="muted">Receba uma notificação neste aparelho quando alguém tentar capturar a tela, imprimir ou copiar conteúdo, mesmo com o app fechado. No iPhone, primeiro adicione o app à Tela de Início e abra por lá.</p>
+      <p>Status neste aparelho: <b id="pst">verificando…</b></p>
+      <div class="acoes"><button class="primary" id="pushbtn" hidden>Ativar alertas neste aparelho</button><button id="pushteste" hidden>Enviar notificação de teste</button></div><div class="err" id="pe"></div></div>` : ''}`);
+  bindShell(); if (user.perfil === 'admin') iniciarPush();
   $('#f').onsubmit = async (ev) => {
     ev.preventDefault();
     try { await api('/me/senha', { method: 'POST', body: Object.fromEntries(new FormData(ev.target)) }); ev.target.reset(); $('#e').innerHTML = '<span class="okmsg">Senha alterada.</span>'; }

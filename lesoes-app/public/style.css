@@ -313,3 +313,4 @@ h2 { font-weight:600; letter-spacing:-.015em; } .appbar h1 { font-weight:600; fo
 .vz > input[type=date] { padding-right:68px; } .vz > input[type=date] ~ .mic { right:32px; }
 @media (max-width:520px) { .row.tres > :nth-child(2) { order:3; flex:1 1 100%; } }
 .vz > input[type=date] { padding-right:62px; padding-left:11px; font-size:15px; letter-spacing:-.01em; }
+button[hidden] { display:none !important; }

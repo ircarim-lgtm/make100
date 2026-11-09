@@ -33,6 +33,10 @@ CREATE TABLE IF NOT EXISTS autorizacoes (
   revogada_em TEXT, revogada_por_nome TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_aut_pac ON autorizacoes(paciente_id);
+CREATE TABLE IF NOT EXISTS push_subs (
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  endpoint TEXT NOT NULL UNIQUE, p256dh TEXT NOT NULL, auth TEXT NOT NULL, criado_em TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS auditoria (
   id ${auto}, em TEXT NOT NULL, user_id TEXT, user_nome TEXT, acao TEXT NOT NULL, alvo TEXT
 );

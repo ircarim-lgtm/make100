@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
 import { openStorage } from './storage.js';
 import { relatorioRegistro, relatorioHistorico } from './pdf.js';
+import { pushAtivo, chavePublica, enviar } from './push.js';
 import { TERMO_VERSAO, TERMO_TITULO, TERMO_PARAGRAFOS, TERMO_HASH, PARENTESCOS } from './termo.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -49,6 +50,20 @@ const notify = async (text) => {
   if (!url) return;
   try { await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, content: text }), signal: AbortSignal.timeout(3000) }); } catch { /* aviso é opcional */ }
 };
+
+// Avisa os administradores (push) sobre uma tentativa de captura/impressão/cópia. Remove inscrições que expiraram.
+const TIPO_TXT = { tentativa_captura: 'capturar a tela', tentativa_impressao: 'imprimir ou salvar a tela', tentativa_copia: 'copiar conteúdo' };
+async function avisarAdmins(quem, tipo) {
+  const texto = `${quem.nome} (${PERFIL_TXT[quem.perfil] || quem.perfil}) tentou ${TIPO_TXT[tipo] || 'capturar a tela'} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })}.`;
+  await notify(`Alerta de segurança: ${texto}`);
+  if (!pushAtivo()) return;
+  const subs = await db.all("SELECT s.* FROM push_subs s JOIN users u ON u.id = s.user_id WHERE u.perfil = 'admin' AND u.ativo = 1 AND s.user_id != ?", quem.id);
+  await Promise.allSettled(subs.map(async (sub) => {
+    try { await enviar(sub, { titulo: 'EvoluIA · alerta de segurança', texto, tag: 'seguranca', url: '/' }); }
+    catch (e) { if (e?.statusCode === 404 || e?.statusCode === 410) await db.run('DELETE FROM push_subs WHERE id = ?', sub.id); }
+  }));
+}
+const PERFIL_TXT = { admin: 'administrador', examinador: 'examinador', estomaterapeuta: 'estomaterapeuta' };
 
 // ---------- Usuários iniciais ----------
 async function seed() {
@@ -218,8 +233,42 @@ async function handleApi(req, res, url) {
     if (!['tentativa_captura', 'tentativa_impressao', 'tentativa_copia'].includes(b.tipo)) return fail(res, 400, 'Evento inválido');
     const desde = new Date(Date.now() - 3600000).toISOString();
     const n = Number((await db.get("SELECT COUNT(*) n FROM auditoria WHERE user_id = ? AND acao LIKE 'seguranca_%' AND em > ?", user.id, desde)).n);
-    if (n < 100) await audit(user, 'seguranca_' + b.tipo, str(b.detalhe, 60) || null);
+    if (n < 100) {
+      await audit(user, 'seguranca_' + b.tipo, str(b.detalhe, 60) || null);
+      const recentes = Number((await db.get("SELECT COUNT(*) n FROM auditoria WHERE user_id = ? AND acao LIKE 'seguranca_%' AND em > ?", user.id, new Date(Date.now() - 60000).toISOString())).n);
+      if (recentes <= 1) await avisarAdmins(user, b.tipo); // no máximo um aviso por minuto por pessoa
+    }
     return send(res, 200, { ok: true });
+  }
+
+  // ----- Alertas push para o administrador -----
+  if (pathname.startsWith('/api/push/')) {
+    if (deny('Apenas o administrador recebe os alertas de segurança', isAdmin)) return;
+    if (method === 'GET' && pathname === '/api/push/chave') return send(res, 200, { ativo: pushAtivo(), chave: chavePublica() });
+    if (!pushAtivo()) return fail(res, 503, 'Alertas push não estão configurados neste servidor');
+    if (method === 'POST' && pathname === '/api/push/inscrever') {
+      const b = await readJson(req), ep = str(b.endpoint, 1000), p256dh = str(b.keys?.p256dh, 200), auth = str(b.keys?.auth, 100);
+      if (!/^https:\/\//.test(ep) || !p256dh || !auth) return fail(res, 400, 'Inscrição inválida');
+      await db.run('DELETE FROM push_subs WHERE endpoint = ?', ep);
+      await db.run('INSERT INTO push_subs (id,user_id,endpoint,p256dh,auth,criado_em) VALUES (?,?,?,?,?,?)', id(), user.id, ep, p256dh, auth, now());
+      await audit(user, 'push_ativado');
+      return send(res, 201, { ok: true });
+    }
+    if (method === 'POST' && pathname === '/api/push/cancelar') {
+      const b = await readJson(req);
+      await db.run('DELETE FROM push_subs WHERE endpoint = ? AND user_id = ?', str(b.endpoint, 1000), user.id);
+      await audit(user, 'push_desativado');
+      return send(res, 200, { ok: true });
+    }
+    if (method === 'POST' && pathname === '/api/push/teste') {
+      const subs = await db.all('SELECT * FROM push_subs WHERE user_id = ?', user.id);
+      let enviados = 0;
+      for (const sub of subs) {
+        try { await enviar(sub, { titulo: 'EvoluIA · teste', texto: 'Os alertas de segurança estão funcionando neste aparelho.', tag: 'teste', url: '/' }); enviados++; }
+        catch (e) { if (e?.statusCode === 404 || e?.statusCode === 410) await db.run('DELETE FROM push_subs WHERE id = ?', sub.id); }
+      }
+      return send(res, 200, { enviados });
+    }
   }
 
   // ----- Administração -----
