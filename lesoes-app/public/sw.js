@@ -1,6 +1,6 @@
 // Cache apenas do "esqueleto" do app; dados clínicos (API) nunca são guardados offline.
-const CACHE = 'lesoes-v8';
-const SHELL = ['/', '/app.js', '/style.css', '/logo.png', '/icon-192.png', '/fonts/fraunces-latin-wght-normal.woff2', '/fonts/figtree-latin-wght-normal.woff2', '/manifest.webmanifest'];
+const CACHE = 'lesoes-v9';
+const SHELL = ['/', '/app.js', '/style.css', '/logo.png', '/icon-192-v2.png', '/fonts/fraunces-latin-wght-normal.woff2', '/fonts/figtree-latin-wght-normal.woff2', '/manifest.webmanifest'];
 self.addEventListener('install', (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener('activate', (e) => e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())));
 self.addEventListener('fetch', (e) => {
@@ -12,7 +12,7 @@ self.addEventListener('fetch', (e) => {
 // Alertas push (ex.: tentativa de captura de tela, para o administrador)
 self.addEventListener('push', (e) => {
   let d = {}; try { d = e.data.json(); } catch { /* sem conteúdo */ }
-  e.waitUntil(self.registration.showNotification(d.titulo || 'EvoluIA', { body: d.texto || '', icon: '/icon-192.png', badge: '/icon-192.png', tag: d.tag || 'evoluia', data: { url: d.url || '/' } }));
+  e.waitUntil(self.registration.showNotification(d.titulo || 'EvoluIA', { body: d.texto || '', icon: '/icon-192-v2.png', badge: '/icon-192-v2.png', tag: d.tag || 'evoluia', data: { url: d.url || '/' } }));
 });
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
