@@ -42,6 +42,14 @@ CREATE TABLE IF NOT EXISTS auditoria (
 );
 `;
 
+// Colunas acrescentadas depois da primeira versão (migração segura: só cria se ainda não existir).
+const COLUNAS = [
+  ['pacientes', 'situacao', "TEXT NOT NULL DEFAULT 'ativo'"], ['pacientes', 'finalizado_em', 'TEXT'], ['pacientes', 'finalizado_por_nome', 'TEXT'],
+  ['pacientes', 'finalizado_obs', 'TEXT'], ['pacientes', 'comorbidades_json', 'TEXT'],
+  ['registros', 'avaliado_em', 'TEXT'], ['registros', 'reaval_dias', 'INTEGER'], ['registros', 'reaval_em', 'TEXT'], ['registros', 'reaval_avisada_em', 'TEXT'],
+  ['registros', 'inativo_em', 'TEXT'], ['registros', 'inativo_por_nome', 'TEXT'], ['registros', 'inativo_motivo', 'TEXT'], ['registros', 'avaliacao_historico', 'TEXT'],
+];
+
 async function openPg(url) {
   const { default: pg } = await import('pg');
   const pool = new pg.Pool({ connectionString: url, max: 3, idleTimeoutMillis: 10000 });
@@ -53,12 +61,13 @@ async function openPg(url) {
     await c.query('SELECT pg_advisory_xact_lock(7424)');
     await c.query(TABLES('SERIAL PRIMARY KEY'));
     await c.query('ALTER TABLE pacientes ADD COLUMN IF NOT EXISTS setor TEXT');
+    for (const [t, col, tipo] of COLUNAS) await c.query(`ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS ${col} ${tipo}`);
     await c.query('COMMIT');
   } catch (e) { await c.query('ROLLBACK').catch(() => {}); throw e; } finally { c.release(); }
   return {
     all: async (sql, ...p) => (await q(sql, p)).rows,
     get: async (sql, ...p) => (await q(sql, p)).rows[0],
-    run: async (sql, ...p) => { await q(sql, p); },
+    run: async (sql, ...p) => (await q(sql, p)).rowCount, // linhas afetadas
   };
 }
 
@@ -68,10 +77,13 @@ async function openSqlite(file) {
   db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
   db.exec(TABLES('INTEGER PRIMARY KEY AUTOINCREMENT'));
   if (!db.prepare('PRAGMA table_info(pacientes)').all().some((c) => c.name === 'setor')) db.exec('ALTER TABLE pacientes ADD COLUMN setor TEXT');
+  for (const [t, col, tipo] of COLUNAS) {
+    if (!db.prepare(`PRAGMA table_info(${t})`).all().some((c) => c.name === col)) db.exec(`ALTER TABLE ${t} ADD COLUMN ${col} ${tipo}`);
+  }
   return {
     all: async (sql, ...p) => db.prepare(sql).all(...p),
     get: async (sql, ...p) => db.prepare(sql).get(...p),
-    run: async (sql, ...p) => { db.prepare(sql).run(...p); },
+    run: async (sql, ...p) => Number(db.prepare(sql).run(...p).changes), // linhas afetadas
   };
 }
 

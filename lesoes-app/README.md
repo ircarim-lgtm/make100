@@ -27,6 +27,8 @@ Usuários de demonstração (só fora de produção): `admin`/`admin1234`, `exam
 ## Publicar na Vercel
 Variáveis do projeto: `ADMIN_PASSWORD` (primeiro acesso), `DATABASE_URL` (Postgres, ex.: Neon) e `BLOB_STORE_ID` (Blob privado, criado ao conectar o store ao projeto). O diretório raiz do projeto é `lesoes-app`.
 
+Lembretes de reavaliação: defina também `CRON_SECRET` (qualquer texto longo e aleatório). O Vercel Cron (`vercel.json`, todo dia 11:00 UTC = 08:00 em Brasília) chama `/api/cron/reavaliacoes` com esse segredo e a estomaterapeuta recebe a notificação push no dia marcado. Fora do Vercel o servidor verifica a cada hora sozinho.
+
 ## Publicar com Docker (HTTPS automático)
 Num servidor com Docker e um domínio apontando para ele:
 

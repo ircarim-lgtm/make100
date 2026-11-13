@@ -314,3 +314,28 @@ h2 { font-weight:600; letter-spacing:-.015em; } .appbar h1 { font-weight:600; fo
 @media (max-width:520px) { .row.tres > :nth-child(2) { order:3; flex:1 1 100%; } }
 .vz > input[type=date] { padding-right:62px; padding-left:11px; font-size:15px; letter-spacing:-.01em; }
 button[hidden] { display:none !important; }
+
+/* ---- finalizar atendimento, reavaliação, inativação, comorbidades ---- */
+.modal { position:fixed; inset:0; z-index:200; display:grid; place-items:center; padding:16px; background:rgba(10,20,30,.55); backdrop-filter:blur(3px); }
+.modal-box { width:min(460px,100%); max-height:92vh; overflow:auto; padding:20px; background:var(--surface); border:1px solid var(--bd); border-radius:20px; box-shadow:var(--shadow); }
+.modal-box h2 { margin:0 0 8px; font-size:20px; }
+.opcoes { display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 10px; }
+.opc { position:relative; display:inline-flex; margin:0; cursor:pointer; }
+.opc input { position:absolute; opacity:0; inset:0; width:100%; height:100%; margin:0; cursor:pointer; }
+.opc span { display:inline-flex; align-items:center; min-height:40px; padding:0 16px; font-size:14px; font-weight:600; color:var(--tx); background:var(--surface2); border:1px solid var(--bd); border-radius:99px; }
+.opc input:checked + span { color:#fff; background:var(--grad); border-color:transparent; box-shadow:var(--glow); }
+.opc input:focus-visible + span { outline:2px solid var(--c); outline-offset:2px; }
+.chip.com { color:var(--tx); }
+.chip.sit-alta { color:var(--ok); background:var(--okbg); border-color:transparent; }
+.chip.sit-obito { color:var(--mut); background:var(--surface2); }
+.sit { display:flex; flex-direction:column; gap:2px; margin:12px 0; padding:12px 14px; border-radius:14px; border:1px solid var(--bd); background:var(--surface2); }
+.sit span { font-size:13px; color:var(--mut); }
+.sit.sit-alta { background:var(--okbg); border-color:var(--ok); }
+.card.reg.inativo { opacity:.6; } .card.reg.inativo b { text-decoration:line-through; }
+.b-inativo { color:var(--mut); background:var(--surface2); }
+.b-hoje { color:#fff; background:linear-gradient(135deg,#ec8461,#c4472b); }
+.b-atrasada { color:var(--err); background:var(--errbg); }
+.tl-dot.inativo { border-color:var(--bd); border-style:dashed; }
+.aviso-inativo { display:flex; flex-direction:column; align-items:flex-start; gap:6px; border-color:var(--err); background:var(--errbg); } .aviso-inativo span { color:var(--mut); font-size:14px; }
+.hist-aval { padding:10px 0; border-top:1px solid var(--bd); font-size:14px; } .hist-aval:first-of-type { border-top:0; }
+details.card summary { cursor:pointer; }

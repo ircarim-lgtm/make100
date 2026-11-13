@@ -38,5 +38,11 @@
       "source": "/api/:path*",
       "destination": "/api/index?__p=:path*"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/reavaliacoes",
+      "schedule": "0 11 * * *"
+    }
   ]
 }
