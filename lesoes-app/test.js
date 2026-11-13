@@ -11,8 +11,9 @@ globalThis.__pushTeste = async (sub, payload) => { if (falhaPush === sub.endpoin
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lesoes-'));
 process.env.DATA_DIR = dir;
+process.env.CRON_SECRET = 'segredo-de-teste-123';
 
-const { server } = await import('./server.js');
+const { server, testHooks } = await import('./server.js');
 await new Promise((r) => server.listen(0, r));
 const base = `http://localhost:${server.address().port}`;
 
@@ -255,6 +256,116 @@ assert.equal((await call('/push/teste', { token: ad, method: 'POST' })).data.env
 falhaPush = null;
 assert.equal((await call('/push/teste', { token: ad, method: 'POST' })).data.enviados, 0);
 for (const f of ['/apple-touch-icon.png', '/icon-192.png', '/icon-512.png']) assert.equal((await fetch(base + f)).status, 200);
+
+// --- comorbidades em lista (HAS / DM / DAOP / DAC + outros)
+const comPac = (await call('/pacientes', { token: ex, method: 'POST', body: { ...PAC, prontuario: 'C1', comorbidades: ['DM', 'HAS'], comorbidadesOutros: 'asma' } })).data;
+assert.equal(comPac.comorbidades, 'HAS, DM, Outros: asma'); assert.deepEqual(comPac.comorbidadesDetalhe, { lista: ['HAS', 'DM'], outros: 'asma' });
+assert.equal((await call('/pacientes', { token: ex, method: 'POST', body: { ...PAC, prontuario: 'C2', comorbidades: ['XYZ'] } })).status, 400);
+const semCom = (await call('/pacientes', { token: ex, method: 'POST', body: { ...PAC, prontuario: 'C3', comorbidades: [], comorbidadesOutros: '' } })).data; assert.equal(semCom.comorbidades, '');
+const velho = (await call('/pacientes', { token: ex, method: 'POST', body: { ...PAC, prontuario: 'C4', comorbidades: 'texto livre antigo' } })).data; assert.equal(velho.comorbidades, 'texto livre antigo'); assert.equal(velho.comorbidadesDetalhe, null);
+assert.equal((await call('/pacientes', { token: es })).data.find((p) => p.id === comPac.id).comorbidadesDetalhe.lista.length, 2);
+
+// --- reavaliação em 3 a 7 dias, lista e lembrete no dia
+const hojeBR = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+const maisDias = (d, n) => { const x = new Date(`${d}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+const novoRegEnviado = async (pacId, local) => {
+  const r = (await call('/registros', { token: ex, method: 'POST', body: { pacienteId: pacId, local } })).data;
+  assert.equal((await call(`/registros/${r.id}/foto`, { token: ex, method: 'PUT', body: jpg, type: 'image/jpeg' })).status, 200);
+  assert.equal((await call(`/registros/${r.id}/enviar`, { token: ex, method: 'POST' })).status, 200);
+  return r;
+};
+const AVAL = { estagio: '2', tratamento: 'Cobertura X', orientacoes: 'Reposicionar' };
+const rr = await novoRegEnviado(comPac.id, 'sacral');
+for (const dias of [2, 8, 0, 'abc', 30]) assert.equal((await call(`/registros/${rr.id}/avaliacao`, { token: es, method: 'POST', body: { ...AVAL, retornoDias: dias } })).status, 400); // só 3, 4, 5, 6 ou 7
+// duas avaliações ao mesmo tempo: só uma vale (a checagem de estado é atômica)
+const dupla = await Promise.all([1, 2].map(() => call(`/registros/${rr.id}/avaliacao`, { token: es, method: 'POST', body: { ...AVAL, retornoDias: 5 } })));
+assert.deepEqual(dupla.map((r) => r.status).sort(), [200, 409]);
+const rrOk = (await call('/registros/' + rr.id, { token: es })).data;
+assert.equal(rrOk.reavaliarDias, 5); assert.equal(rrOk.reavaliarEm, maisDias(hojeBR, 5)); assert.equal(rrOk.avaliacao.retornoDias, 5);
+assert.equal((await call('/registros/reavaliacoes', { token: ex })).status, 403); // só a estomaterapeuta
+const listaR = (await call('/registros/reavaliacoes', { token: es })).data;
+assert.equal(listaR.hoje, hojeBR); assert.ok(listaR.itens.some((i) => i.id === rr.id && i.reavaliarEm === maisDias(hojeBR, 5)));
+assert.equal((await call('/notificacoes', { token: es })).data.reavaliacoes, 0); // ainda não venceu
+// chegou o dia: o lembrete é enviado uma única vez, para os aparelhos de quem avaliou, sem dado do paciente
+await testHooks.db.run('UPDATE registros SET reaval_em = ? WHERE id = ?', hojeBR, rr.id);
+assert.equal((await call('/notificacoes', { token: es })).data.reavaliacoes, 1);
+assert.equal((await call('/push/inscrever', { token: es, method: 'POST', body: SUB('estoma') })).status, 201); // a estomaterapeuta também ativa alertas
+assert.equal((await call('/push/inscrever', { token: ex, method: 'POST', body: SUB('exam') })).status, 403);
+enviosPush.length = 0;
+assert.deepEqual(await testHooks.avisarReavaliacoes(), { registros: 1, enviados: 1 });
+assert.equal(enviosPush.length, 1); assert.equal(enviosPush[0].endpoint, SUB('estoma').endpoint); assert.equal(enviosPush[0].payload.texto, 'Você tem 1 reavaliação para hoje.');
+assert.doesNotMatch(JSON.stringify(enviosPush), /Maria|sacral|C1/);
+assert.deepEqual(await testHooks.avisarReavaliacoes(), { registros: 0, enviados: 0 }); // não repete
+// agendador: exige o segredo
+assert.equal((await call('/cron/reavaliacoes')).status, 401);
+assert.equal((await call('/cron/reavaliacoes', { token: 'errado' })).status, 401);
+assert.equal((await call('/cron/reavaliacoes', { token: 'segredo-de-teste-123' })).status, 200);
+// novo registro do paciente = reavaliação feita: sai da lista e dos contadores
+const rr2 = (await call('/registros', { token: ex, method: 'POST', body: { pacienteId: comPac.id, local: 'sacral' } })).data;
+assert.ok(!(await call('/registros/reavaliacoes', { token: es })).data.itens.some((i) => i.id === rr.id));
+assert.equal((await call('/notificacoes', { token: es })).data.reavaliacoes, 0);
+assert.equal((await call('/registros/' + rr2.id, { token: ex, method: 'DELETE' })).status, 200);
+
+// --- finalizar atendimento (alta ou óbito) e reabrir
+assert.equal((await call(`/pacientes/${comPac.id}/finalizar`, { token: ex, method: 'POST', body: { situacao: 'alta' } })).status, 403);
+assert.equal((await call(`/pacientes/${comPac.id}/finalizar`, { token: ad, method: 'POST', body: { situacao: 'alta' } })).status, 403);
+assert.equal((await call(`/pacientes/${comPac.id}/finalizar`, { token: es, method: 'POST', body: { situacao: 'cura' } })).status, 400);
+const rascFin = (await call('/registros', { token: ex, method: 'POST', body: { pacienteId: comPac.id, local: 'calcâneo' } })).data; // rascunho aberto antes de finalizar
+assert.equal((await call(`/registros/${rascFin.id}/foto`, { token: ex, method: 'PUT', body: jpg, type: 'image/jpeg' })).status, 200);
+const fin = await call(`/pacientes/${comPac.id}/finalizar`, { token: es, method: 'POST', body: { situacao: 'obito', observacao: 'sem intercorrências no registro' } });
+assert.equal(fin.status, 200); assert.equal(fin.data.situacao, 'obito'); assert.equal(fin.data.finalizadoPorNome, 'Estomaterapeuta (demo)'); assert.ok(fin.data.finalizadoEm);
+assert.equal((await call(`/pacientes/${comPac.id}/finalizar`, { token: es, method: 'POST', body: { situacao: 'alta' } })).status, 409); // já finalizado
+assert.equal((await call('/registros', { token: ex, method: 'POST', body: { pacienteId: comPac.id, local: 'x' } })).status, 409); // sem novas lesões
+assert.equal((await call(`/registros/${rascFin.id}/enviar`, { token: ex, method: 'POST' })).status, 409);
+assert.ok((await call('/pacientes?situacao=finalizados', { token: ex })).data.some((p) => p.id === comPac.id));
+assert.ok(!(await call('/pacientes?situacao=ativos', { token: ex })).data.some((p) => p.id === comPac.id));
+assert.equal((await call('/pacientes/' + comPac.id, { token: ex })).data.situacao, 'obito');
+await testHooks.db.run('UPDATE registros SET reaval_em = ?, reaval_avisada_em = NULL WHERE id = ?', hojeBR, rr.id); // finalizado: sem lembrete
+assert.deepEqual(await testHooks.avisarReavaliacoes(), { registros: 0, enviados: 0 });
+assert.equal((await call(`/pacientes/${comPac.id}/reabrir`, { token: ex, method: 'POST' })).status, 403);
+const reab = await call(`/pacientes/${comPac.id}/reabrir`, { token: es, method: 'POST' }); assert.equal(reab.data.situacao, 'ativo'); assert.equal(reab.data.finalizadoEm, null);
+assert.equal((await call(`/pacientes/${comPac.id}/reabrir`, { token: es, method: 'POST' })).status, 409);
+assert.equal((await call(`/pacientes/${comPac.id}/finalizar`, { token: es, method: 'POST', body: { situacao: 'alta' } })).status, 200);
+assert.equal((await call(`/pacientes/${comPac.id}/pdf`, { token: es })).status, 200); // o PDF do histórico mostra a situação
+assert.equal((await call(`/pacientes/${comPac.id}/reabrir`, { token: es, method: 'POST' })).status, 200);
+assert.equal((await call(`/registros/${rascFin.id}`, { token: ex, method: 'DELETE' })).status, 200);
+
+// --- inativar registro/avaliação lançados por engano (o histórico fica, com o motivo)
+await call('/usuarios', { token: ad, method: 'POST', body: { nome: 'Outro Examinador', login: 'outroex', senha: 'outrasenha1', perfil: 'examinador' } });
+const outroEx = await tok('outroex', 'outrasenha1');
+const rascInat = (await call('/registros', { token: ex, method: 'POST', body: { pacienteId: comPac.id, local: 'trocânter' } })).data;
+assert.equal((await call(`/registros/${rascInat.id}/inativar`, { token: ex, method: 'POST', body: { motivo: 'foi lançado no paciente errado' } })).status, 409); // rascunho: excluir
+assert.equal((await call(`/registros/${rascInat.id}`, { token: ex, method: 'DELETE' })).status, 200);
+assert.equal((await call(`/registros/${rr.id}/inativar`, { token: outroEx, method: 'POST', body: { motivo: 'não é meu registro mas tento' } })).status, 403); // só o autor
+assert.equal((await call(`/registros/${rr.id}/inativar`, { token: ad, method: 'POST', body: { motivo: 'administrador não pode' } })).status, 403);
+assert.equal((await call(`/registros/${rr.id}/inativar`, { token: ex, method: 'POST', body: { motivo: 'abc' } })).status, 400); // motivo obrigatório (mín. 5)
+assert.equal((await call(`/registros/${rr.id}/inativar`, { token: ex, method: 'POST', body: { motivo: 'foto de outro paciente' } })).status, 200);
+const inat = (await call('/registros/' + rr.id, { token: es })).data;
+assert.equal(inat.inativo.motivo, 'foto de outro paciente'); assert.equal(inat.inativo.porNome, 'Enf. Examinador (demo)'); assert.ok(inat.inativo.em);
+assert.equal((await call(`/registros/${rr.id}/inativar`, { token: es, method: 'POST', body: { motivo: 'já está inativo' } })).status, 409);
+assert.ok(!(await call('/registros?status=avaliado', { token: es })).data.some((r) => r.id === rr.id)); // sai das filas
+assert.ok((await call('/pacientes/' + comPac.id, { token: es })).data.registros.some((r) => r.id === rr.id && r.inativo)); // mas fica no histórico
+assert.ok(!(await call('/registros/reavaliacoes', { token: es })).data.itens.some((i) => i.id === rr.id));
+assert.equal((await call(`/registros/${rr.id}/pdf`, { token: es })).status, 409);
+assert.equal((await call(`/pacientes/${comPac.id}/pdf`, { token: ad })).status, 200);
+assert.equal((await call(`/registros/${rr.id}/reativar`, { token: outroEx, method: 'POST' })).status, 403);
+assert.equal((await call(`/registros/${rr.id}/reativar`, { token: es, method: 'POST' })).status, 200); // a estomaterapeuta também corrige
+assert.equal((await call(`/registros/${rr.id}/reativar`, { token: es, method: 'POST' })).status, 409);
+// a estomaterapeuta inativa a PRÓPRIA avaliação: o caso volta para a fila e ela refaz
+assert.equal((await call(`/registros/${rr.id}/refazer-avaliacao`, { token: ex, method: 'POST', body: { motivo: 'não posso' } })).status, 403);
+assert.equal((await call(`/registros/${rr.id}/refazer-avaliacao`, { token: es, method: 'POST', body: { motivo: 'x' } })).status, 400);
+const refeita = await call(`/registros/${rr.id}/refazer-avaliacao`, { token: es, method: 'POST', body: { motivo: 'indiquei a cobertura errada' } });
+assert.equal(refeita.status, 200); assert.equal(refeita.data.status, 'enviado'); assert.equal(refeita.data.avaliacao, null); assert.equal(refeita.data.reavaliarEm, null);
+assert.equal(refeita.data.avaliacaoHistorico.length, 1); assert.equal(refeita.data.avaliacaoHistorico[0].motivo, 'indiquei a cobertura errada'); assert.equal(refeita.data.avaliacaoHistorico[0].tratamento, 'Cobertura X');
+assert.ok((await call('/registros?status=enviado', { token: es })).data.some((r) => r.id === rr.id));
+assert.equal((await call(`/registros/${rr.id}/refazer-avaliacao`, { token: es, method: 'POST', body: { motivo: 'sem avaliação' } })).status, 409);
+assert.equal((await call(`/registros/${rr.id}/avaliacao`, { token: es, method: 'POST', body: { ...AVAL, tratamento: 'Cobertura certa', retornoDias: 3 } })).status, 200);
+assert.equal((await call('/registros/' + rr.id, { token: es })).data.reavaliarEm, maisDias(hojeBR, 3));
+// o texto do motivo (pode ser clínico) não vai para a auditoria
+const audInat = JSON.stringify((await call('/auditoria', { token: ad })).data);
+for (const a of ['atendimento_finalizado', 'atendimento_reaberto', 'registro_inativado', 'registro_reativado', 'avaliacao_inativada']) assert.ok(audInat.includes(a), a);
+assert.doesNotMatch(audInat, /foto de outro paciente|cobertura errada|sem intercorrências/);
+assert.equal((await call('/pacientes/' + comPac.id, { token: ad, method: 'DELETE' })).status, 200); // limpeza (também prova a exclusão LGPD com registros inativados)
 
 // --- auditoria registra acessos
 const aud = (await call('/auditoria', { token: ad })).data.map((a) => a.acao);

@@ -35,6 +35,13 @@ const checkPw = (pw, stored) => {
   const [salt, h] = stored.split(':');
   return crypto.timingSafeEqual(Buffer.from(hash(pw, salt).split(':')[1], 'hex'), Buffer.from(h, 'hex'));
 };
+// Datas "de calendário" no fuso de São Paulo (AAAA-MM-DD): a reavaliação vence no dia, não em 24 h exatas.
+const TZ = 'America/Sao_Paulo';
+const dataBR = (d = new Date()) => new Intl.DateTimeFormat('sv-SE', { timeZone: TZ }).format(d);
+const somaDias = (dia, n) => { const d = new Date(`${dia}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+const REAVAL_OPCOES = [3, 4, 5, 6, 7]; // dias para reavaliar
+const COMORB = ['HAS', 'DM', 'DAOP', 'DAC'];
+const SITUACOES = ['alta', 'obito'];
 const str = (v, max = 500) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 const senhaValida = (s) => typeof s === 'string' && s.length >= 8 && s.length <= 200;
 const PERFIS = ['admin', 'examinador', 'estomaterapeuta'];
@@ -81,6 +88,42 @@ async function seed() {
   }
 }
 await seed();
+
+// Registros avaliados antes da reavaliação com data: preenche as colunas novas e marca como "já avisado" (sem enviar alerta de datas antigas).
+async function migrarReavaliacoes() {
+  for (const r of await db.all("SELECT id, avaliacao FROM registros WHERE status = 'avaliado' AND avaliado_em IS NULL AND avaliacao IS NOT NULL")) {
+    let av = {}; try { av = JSON.parse(r.avaliacao); } catch { /* registro antigo ilegível */ }
+    const dias = Number.isInteger(av.retornoDias) && av.retornoDias > 0 ? av.retornoDias : null, em = av.avaliadoEm || now();
+    await db.run('UPDATE registros SET avaliado_em = ?, reaval_dias = ?, reaval_em = ?, reaval_avisada_em = ? WHERE id = ? AND avaliado_em IS NULL', em, dias, dias ? somaDias(dataBR(new Date(em)), dias) : null, now(), r.id);
+  }
+}
+await migrarReavaliacoes();
+
+// Lembrete de reavaliação: quando chega o dia, avisa (push) quem avaliou. Cada registro é "reivindicado" uma única vez.
+const REAVAL_PENDENTE = `r.status = 'avaliado' AND r.inativo_em IS NULL AND r.reaval_em IS NOT NULL AND p.situacao = 'ativo'
+  AND NOT EXISTS (SELECT 1 FROM registros r2 WHERE r2.paciente_id = r.paciente_id AND r2.id != r.id AND r2.inativo_em IS NULL AND r2.criado_em > r.avaliado_em)`;
+export async function avisarReavaliacoes() {
+  const rows = await db.all(`${REG_SQL} WHERE ${REAVAL_PENDENTE} AND r.reaval_em <= ? AND r.reaval_avisada_em IS NULL`, dataBR());
+  const porUsuario = new Map(); let registros = 0, enviados = 0;
+  for (const r of rows) {
+    if (await db.run('UPDATE registros SET reaval_avisada_em = ? WHERE id = ? AND reaval_avisada_em IS NULL', now(), r.id) !== 1) continue; // outra execução já pegou
+    registros++;
+    let alvo = null; try { alvo = JSON.parse(r.avaliacao || '{}').avaliadoPor; } catch { /* sem avaliador */ }
+    const ativo = alvo && await db.get('SELECT 1 x FROM users WHERE id = ? AND ativo = 1', alvo);
+    const destinos = ativo ? [alvo] : (await db.all("SELECT id FROM users WHERE perfil = 'estomaterapeuta' AND ativo = 1")).map((u) => u.id);
+    for (const d of destinos) porUsuario.set(d, (porUsuario.get(d) || 0) + 1);
+  }
+  if (pushAtivo()) {
+    for (const [uid, n] of porUsuario) {
+      const texto = n === 1 ? 'Você tem 1 reavaliação para hoje.' : `Você tem ${n} reavaliações para hoje.`; // sem nome de paciente no aviso
+      for (const sub of await db.all('SELECT * FROM push_subs WHERE user_id = ?', uid)) {
+        try { await enviar(sub, { titulo: 'EvoluIA · reavaliação', texto, tag: 'reavaliacao', url: '/' }); enviados++; }
+        catch (e) { if (e?.statusCode === 404 || e?.statusCode === 410) await db.run('DELETE FROM push_subs WHERE id = ?', sub.id); }
+      }
+    }
+  }
+  return { registros, enviados };
+}
 
 // ---------- HTTP ----------
 const SEC = {
@@ -135,15 +178,20 @@ const pacOut = (p) => ({
   id: p.id, nome: p.nome, prontuario: p.prontuario, dataNascimento: p.data_nascimento, sexo: p.sexo, setor: p.setor, leito: p.leito,
   comorbidades: p.comorbidades, braden: p.braden, consentimentoPor: p.consentimento_por, consentimentoEm: p.consentimento_em,
   criadoEm: p.criado_em, totalRegistros: p.total,
+  situacao: p.situacao || 'ativo', finalizadoEm: p.finalizado_em, finalizadoPorNome: p.finalizado_por_nome, finalizadoObs: p.finalizado_obs,
+  comorbidadesDetalhe: (() => { try { const j = JSON.parse(p.comorbidades_json || 'null'); return j ? { lista: j.lista || [], outros: j.outros || '' } : null; } catch { return null; } })(),
 });
-const REG_SQL = 'SELECT r.*, p.nome p_nome, p.prontuario p_pront, p.setor p_setor, p.leito p_leito, CAST((SELECT COUNT(*) FROM autorizacoes a WHERE a.paciente_id = p.id AND a.revogada_em IS NULL) AS INTEGER) p_aut FROM registros r JOIN pacientes p ON p.id = r.paciente_id';
+const REG_SQL = 'SELECT r.*, p.nome p_nome, p.prontuario p_pront, p.setor p_setor, p.leito p_leito, p.situacao p_sit, CAST((SELECT COUNT(*) FROM autorizacoes a WHERE a.paciente_id = p.id AND a.revogada_em IS NULL) AS INTEGER) p_aut FROM registros r JOIN pacientes p ON p.id = r.paciente_id';
 const regOut = (r, user) => ({
   id: r.id, pacienteId: r.paciente_id, local: r.local, observacoes: r.observacoes, status: r.status,
   foto: r.foto_arquivo ? { tipo: r.foto_tipo, enviadaEm: r.foto_em } : null,
   criadoPor: r.criado_por, criadoPorNome: r.criado_por_nome, criadoEm: r.criado_em, enviadoEm: r.enviado_em,
   avaliacao: r.avaliacao ? JSON.parse(r.avaliacao) : null,
+  avaliadoEm: r.avaliado_em, reavaliarDias: r.reaval_dias, reavaliarEm: r.reaval_em,
+  inativo: r.inativo_em ? { em: r.inativo_em, porNome: r.inativo_por_nome, motivo: r.inativo_motivo } : null,
+  avaliacaoHistorico: r.avaliacao_historico ? JSON.parse(r.avaliacao_historico) : [],
   novo: user.perfil === 'examinador' && r.status === 'avaliado' && !r.avaliacao_visto && r.criado_por === user.id,
-  paciente: { id: r.paciente_id, nome: r.p_nome, prontuario: r.p_pront, setor: r.p_setor, leito: r.p_leito, autorizado: r.p_aut > 0 },
+  paciente: { id: r.paciente_id, nome: r.p_nome, prontuario: r.p_pront, setor: r.p_setor, leito: r.p_leito, autorizado: r.p_aut > 0, situacao: r.p_sit || 'ativo' },
 });
 const autOut = (a) => ({
   id: a.id, signatario: a.signatario, parentesco: a.parentesco, documento: a.documento ? `•••${a.documento.slice(-2)}` : null,
@@ -195,6 +243,14 @@ async function handleApi(req, res, url) {
     return send(res, 200, { token: await startSession(u.id), usuario: userOut(u) });
   }
 
+  // Lembretes de reavaliação: chamado todo dia pelo agendador (Vercel Cron envia Authorization: Bearer CRON_SECRET).
+  if (method === 'GET' && pathname === '/api/cron/reavaliacoes') {
+    const segredo = process.env.CRON_SECRET || '', recebido = (req.headers.authorization || '').replace(/^Bearer /, '');
+    if (!segredo) return fail(res, 503, 'Agendador não configurado');
+    if (recebido.length !== segredo.length || !crypto.timingSafeEqual(Buffer.from(recebido), Buffer.from(segredo))) return fail(res, 401, 'Não autorizado');
+    return send(res, 200, await avisarReavaliacoes());
+  }
+
   const user = await authUser(req);
   if (!user) return fail(res, 401, 'Não autenticado');
   const perfil = user.perfil;
@@ -222,8 +278,11 @@ async function handleApi(req, res, url) {
 
   // Avisos (contadores consultados periodicamente pelo app)
   if (method === 'GET' && pathname === '/api/notificacoes') {
-    if (isEstoma) return send(res, 200, { total: Number((await db.get("SELECT COUNT(*) n FROM registros WHERE status = 'enviado'")).n), tipo: 'casos' });
-    if (isExam) return send(res, 200, { total: Number((await db.get("SELECT COUNT(*) n FROM registros WHERE status = 'avaliado' AND avaliacao_visto = 0 AND criado_por = ?", user.id)).n), tipo: 'devolutivas' });
+    if (isEstoma) {
+      const reav = Number((await db.get(`SELECT COUNT(*) n FROM registros r JOIN pacientes p ON p.id = r.paciente_id WHERE ${REAVAL_PENDENTE} AND r.reaval_em <= ?`, dataBR())).n);
+      return send(res, 200, { total: Number((await db.get("SELECT COUNT(*) n FROM registros WHERE status = 'enviado' AND inativo_em IS NULL")).n), reavaliacoes: reav, tipo: 'casos' });
+    }
+    if (isExam) return send(res, 200, { total: Number((await db.get("SELECT COUNT(*) n FROM registros WHERE status = 'avaliado' AND avaliacao_visto = 0 AND inativo_em IS NULL AND criado_por = ?", user.id)).n), tipo: 'devolutivas' });
     return send(res, 200, { total: 0, tipo: '' });
   }
 
@@ -243,7 +302,7 @@ async function handleApi(req, res, url) {
 
   // ----- Alertas push para o administrador -----
   if (pathname.startsWith('/api/push/')) {
-    if (deny('Apenas o administrador recebe os alertas de segurança', isAdmin)) return;
+    if (deny('Apenas o administrador e a estomaterapeuta recebem alertas', isAdmin || isEstoma)) return;
     if (method === 'GET' && pathname === '/api/push/chave') return send(res, 200, { ativo: pushAtivo(), chave: chavePublica() });
     if (!pushAtivo()) return fail(res, 503, 'Alertas push não estão configurados neste servidor');
     if (method === 'POST' && pathname === '/api/push/inscrever') {
@@ -310,8 +369,10 @@ async function handleApi(req, res, url) {
     const q = `%${(url.searchParams.get('q') || '').toLowerCase()}%`;
     if (isAdmin) return send(res, 200, await db.all('SELECT id, nome, prontuario FROM pacientes WHERE lower(nome) LIKE ? OR lower(prontuario) LIKE ? ORDER BY nome LIMIT 200', q, q));
     const filtro = isEstoma ? `AND ${meusRascunhos}` : '';
-    const rows = await db.all(`SELECT p.*, CAST((SELECT COUNT(*) FROM registros r WHERE r.paciente_id = p.id ${filtro}) AS INTEGER) total
-      FROM pacientes p WHERE lower(p.nome) LIKE ? OR lower(p.prontuario) LIKE ? OR lower(p.setor) LIKE ? ORDER BY p.nome LIMIT 200`, ...(isEstoma ? [user.id] : []), q, q, q);
+    const sit = url.searchParams.get('situacao'); // ativos | finalizados | (todos)
+    const porSituacao = sit === 'ativos' ? "AND p.situacao = 'ativo'" : sit === 'finalizados' ? "AND p.situacao != 'ativo'" : '';
+    const rows = await db.all(`SELECT p.*, CAST((SELECT COUNT(*) FROM registros r WHERE r.paciente_id = p.id AND r.inativo_em IS NULL ${filtro}) AS INTEGER) total
+      FROM pacientes p WHERE (lower(p.nome) LIKE ? OR lower(p.prontuario) LIKE ? OR lower(p.setor) LIKE ?) ${porSituacao} ORDER BY p.nome LIMIT 200`, ...(isEstoma ? [user.id] : []), q, q, q);
     return send(res, 200, rows.map(pacOut));
   }
   if (pathname === '/api/pacientes' && method === 'POST') {
@@ -324,12 +385,39 @@ async function handleApi(req, res, url) {
     if (await db.get('SELECT 1 x FROM pacientes WHERE prontuario = ?', prontuario)) return fail(res, 409, 'Atendimento já cadastrado');
     const nasc = str(b.dataNascimento, 10);
     if (nasc && !/^\d{4}-\d{2}-\d{2}$/.test(nasc)) return fail(res, 400, 'Data de nascimento inválida');
+    // Comorbidades: lista fixa (HAS, DM, DAOP, DAC) + "Outros" em texto livre. Texto antigo (string) continua aceito.
+    let comorb = '', comorbJson = null;
+    if (Array.isArray(b.comorbidades)) {
+      if (b.comorbidades.some((c) => !COMORB.includes(c))) return fail(res, 400, 'Comorbidade inválida');
+      const lista = COMORB.filter((c) => b.comorbidades.includes(c)), outros = str(b.comorbidadesOutros, 300);
+      comorb = [...lista, outros && `Outros: ${outros}`].filter(Boolean).join(', ');
+      comorbJson = JSON.stringify({ lista, outros });
+    } else comorb = str(b.comorbidades, 500);
     const pid = id();
-    await db.run('INSERT INTO pacientes (id,nome,prontuario,data_nascimento,sexo,setor,leito,comorbidades,braden,consentimento_por,consentimento_em,criado_por,criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
-      pid, nome, prontuario, nasc, str(b.sexo, 20), setor, str(b.leito, 40), str(b.comorbidades, 500), str(b.braden, 5), consPor, now(), user.id, now());
+    await db.run('INSERT INTO pacientes (id,nome,prontuario,data_nascimento,sexo,setor,leito,comorbidades,comorbidades_json,braden,consentimento_por,consentimento_em,criado_por,criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      pid, nome, prontuario, nasc, str(b.sexo, 20), setor, str(b.leito, 40), comorb, comorbJson, str(b.braden, 5), consPor, now(), user.id, now());
     await audit(user, 'paciente_criado', prontuario);
     return send(res, 201, pacOut(await db.get('SELECT p.*, 0 total FROM pacientes p WHERE id = ?', pid)));
   }
+  // ----- Finalizar atendimento (alta ou óbito) e reabrir -----
+  if ((m = pathname.match(/^\/api\/pacientes\/(\w+)\/(finalizar|reabrir)$/)) && method === 'POST') {
+    if (deny('Apenas a estomaterapeuta finaliza ou reabre o atendimento', isEstoma)) return;
+    const p = await db.get('SELECT * FROM pacientes WHERE id = ?', m[1]);
+    if (!p) return fail(res, 404, 'Paciente não encontrado');
+    if (m[2] === 'finalizar') {
+      const b = await readJson(req);
+      if (!SITUACOES.includes(b.situacao)) return fail(res, 400, 'Escolha Alta ou Óbito');
+      const n = await db.run("UPDATE pacientes SET situacao = ?, finalizado_em = ?, finalizado_por_nome = ?, finalizado_obs = ? WHERE id = ? AND situacao = 'ativo'", b.situacao, now(), user.nome, str(b.observacao, 300) || null, p.id);
+      if (!n) return fail(res, 409, 'Este atendimento já foi finalizado');
+      await audit(user, 'atendimento_finalizado', `${p.prontuario}:${b.situacao}`);
+    } else {
+      const n = await db.run("UPDATE pacientes SET situacao = 'ativo', finalizado_em = NULL, finalizado_por_nome = NULL, finalizado_obs = NULL WHERE id = ? AND situacao != 'ativo'", p.id);
+      if (!n) return fail(res, 409, 'Este atendimento não está finalizado');
+      await audit(user, 'atendimento_reaberto', p.prontuario);
+    }
+    return send(res, 200, pacOut(await db.get('SELECT p.*, 0 total FROM pacientes p WHERE id = ?', p.id)));
+  }
+
   // ----- Autorização de uso de imagem (assinatura da família na tela) -----
   if (pathname === '/api/autorizacao/termo' && method === 'GET') {
     return send(res, 200, { versao: TERMO_VERSAO, titulo: TERMO_TITULO, paragrafos: TERMO_PARAGRAFOS, parentescos: PARENTESCOS });
@@ -388,7 +476,7 @@ async function handleApi(req, res, url) {
     const registros = await db.all("SELECT * FROM registros WHERE paciente_id = ? AND status != 'rascunho' ORDER BY criado_em ASC", p.id);
     if (!registros.length) return fail(res, 404, 'Este paciente ainda não tem registros enviados para avaliação');
     const fotos = new Map(); // todas as fotos; a resposta é transmitida em partes (streaming), sem o limite de 4,5 MB
-    for (const r of registros) if (r.foto_arquivo) fotos.set(r.id, await storage.get(r.foto_arquivo));
+    for (const r of registros) if (r.foto_arquivo && !r.inativo_em) fotos.set(r.id, await storage.get(r.foto_arquivo)); // registros inativados não levam foto ao PDF
     const autorizacao = await autorizacaoParaPdf(p.id);
     await audit(user, 'historico_pdf', p.prontuario);
     return sendPdf(res, relatorioHistorico({ paciente: p, registros, fotos, autorizacao, geradoPor: user.nome }), `historico-lesoes-${p.prontuario}.pdf`);
@@ -421,23 +509,30 @@ async function handleApi(req, res, url) {
     const visivel = (r) => r && !(isEstoma && r.status === 'rascunho' && r.criado_por !== user.id);
     if (pathname === '/api/registros' && method === 'GET') {
       const status = url.searchParams.get('status');
-      const where = [], params = [];
+      const where = ['r.inativo_em IS NULL'], params = []; // registros inativados (erro) não entram nas filas
       if (STATUS.includes(status)) { where.push('r.status = ?'); params.push(status); }
       if (isEstoma) { where.push(meusRascunhos); params.push(user.id); }
       const rows = await db.all(`${REG_SQL} ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY COALESCE(r.enviado_em, r.criado_em) DESC LIMIT 300`, ...params);
       return send(res, 200, rows.map((r) => regOut(r, user)));
     }
+    if (pathname === '/api/registros/reavaliacoes' && method === 'GET') { // reavaliações marcadas pela estomaterapeuta (3 a 7 dias)
+      if (deny('Apenas a estomaterapeuta vê as reavaliações', isEstoma)) return;
+      const rows = await db.all(`${REG_SQL} WHERE ${REAVAL_PENDENTE} ORDER BY r.reaval_em ASC LIMIT 200`);
+      return send(res, 200, { hoje: dataBR(), itens: rows.map((r) => regOut(r, user)) });
+    }
     if (pathname === '/api/registros' && method === 'POST') {
       if (deny('Apenas examinador ou estomaterapeuta criam registros', podeRegistrar)) return;
       const b = await readJson(req);
-      if (!await db.get('SELECT 1 x FROM pacientes WHERE id = ?', b.pacienteId)) return fail(res, 400, 'Paciente inválido');
+      const pac = typeof b.pacienteId === 'string' ? await db.get('SELECT situacao FROM pacientes WHERE id = ?', b.pacienteId) : null;
+      if (!pac) return fail(res, 400, 'Paciente inválido');
+      if (pac.situacao !== 'ativo') return fail(res, 409, 'O atendimento deste paciente foi finalizado. A estomaterapeuta precisa reabri-lo para novos registros.');
       const rid = id();
       await db.run("INSERT INTO registros (id,paciente_id,local,observacoes,status,criado_por,criado_por_nome,criado_em) VALUES (?,?,?,?, 'rascunho',?,?,?)",
         rid, b.pacienteId, str(b.local, 100), str(b.observacoes, 1000), user.id, user.nome, now());
       await audit(user, 'registro_criado', rid);
       return send(res, 201, regOut(await db.get(`${REG_SQL} WHERE r.id = ?`, rid), user));
     }
-    if ((m = pathname.match(/^\/api\/registros\/(\w+)(?:\/(foto|enviar|avaliacao|pdf))?$/))) {
+    if ((m = pathname.match(/^\/api\/registros\/(\w+)(?:\/(foto|enviar|avaliacao|pdf|inativar|reativar|refazer-avaliacao))?$/))) {
       const r = await db.get(`${REG_SQL} WHERE r.id = ?`, m[1]);
       const sub = m[2];
       if (!visivel(r)) return fail(res, 404, 'Registro não encontrado');
@@ -478,6 +573,7 @@ async function handleApi(req, res, url) {
       }
       if (sub === 'pdf' && method === 'GET') {
         if (deny('Apenas a estomaterapeuta e o administrador podem baixar PDF', isEstoma || isAdmin)) return;
+        if (r.inativo_em) return fail(res, 409, 'Este registro foi inativado e não gera relatório');
         if (r.status !== 'avaliado') return fail(res, 409, 'O relatório fica disponível após a avaliação da estomaterapeuta');
         const paciente = await db.get('SELECT * FROM pacientes WHERE id = ?', r.paciente_id);
         const fotoBuf = r.foto_arquivo ? await storage.get(r.foto_arquivo) : null;
@@ -490,24 +586,55 @@ async function handleApi(req, res, url) {
         if (deny('Apenas examinador ou estomaterapeuta enviam para avaliação', podeRegistrar)) return;
         if (r.status !== 'rascunho') return fail(res, 409, 'Registro já foi enviado');
         if (!r.foto_arquivo) return fail(res, 400, 'Anexe a foto da lesão antes de enviar');
-        await db.run("UPDATE registros SET status='enviado', enviado_em=? WHERE id=?", now(), r.id);
+        if (r.p_sit !== 'ativo') return fail(res, 409, 'O atendimento deste paciente foi finalizado');
+        if (!await db.run("UPDATE registros SET status='enviado', enviado_em=? WHERE id=? AND status='rascunho'", now(), r.id)) return fail(res, 409, 'Registro já foi enviado');
         await audit(user, 'registro_enviado', r.id);
         await notify('Novo caso de lesão por pressão aguardando avaliação da estomaterapeuta.');
         return send(res, 200, await reload());
       }
       if (sub === 'avaliacao' && method === 'POST') {
         if (deny('Apenas a estomaterapeuta avalia', isEstoma)) return;
+        if (r.inativo_em) return fail(res, 409, 'Este registro foi inativado');
         if (r.status !== 'enviado') return fail(res, 409, 'Este caso já foi avaliado');
         const b = await readJson(req);
         const tratamento = str(b.tratamento, 2000), orientacoes = str(b.orientacoes, 2000), estagio = str(b.estagio, 30);
         if (!tratamento || !orientacoes) return fail(res, 400, 'Informe o tratamento e as orientações');
         if (estagio && !ESTAGIOS.includes(estagio)) return fail(res, 400, 'Estágio inválido');
         const ret = b.retornoDias === '' || b.retornoDias == null ? null : Number(b.retornoDias);
-        if (ret !== null && (!Number.isInteger(ret) || ret < 0 || ret > 365)) return fail(res, 400, 'Prazo de reavaliação inválido');
-        const av = { estagio, tratamento, orientacoes, retornoDias: ret, avaliadoPor: user.id, avaliadoPorNome: user.nome, avaliadoEm: now() };
-        await db.run("UPDATE registros SET status='avaliado', avaliacao=?, avaliacao_visto=0 WHERE id=?", JSON.stringify(av), r.id);
+        if (ret !== null && !REAVAL_OPCOES.includes(ret)) return fail(res, 400, 'Escolha reavaliar em 3, 4, 5, 6 ou 7 dias');
+        const em = now(), av = { estagio, tratamento, orientacoes, retornoDias: ret, avaliadoPor: user.id, avaliadoPorNome: user.nome, avaliadoEm: em };
+        const gravou = await db.run("UPDATE registros SET status='avaliado', avaliacao=?, avaliacao_visto=0, avaliado_em=?, reaval_dias=?, reaval_em=?, reaval_avisada_em=NULL WHERE id=? AND status='enviado' AND inativo_em IS NULL",
+          JSON.stringify(av), em, ret, ret ? somaDias(dataBR(new Date(em)), ret) : null, r.id);
+        if (!gravou) return fail(res, 409, 'Este caso já foi avaliado');
         await audit(user, 'avaliacao', r.id);
         await notify('Uma devolutiva da estomaterapeuta está disponível.');
+        return send(res, 200, await reload());
+      }
+      // Corrigir erros sem apagar o histórico: inativar o registro, reativar, ou inativar a avaliação para refazê-la.
+      if ((sub === 'inativar' || sub === 'reativar') && method === 'POST') {
+        if (deny('Só quem criou o registro (examinador) ou a estomaterapeuta pode inativá-lo', isEstoma || (isExam && r.criado_por === user.id))) return;
+        if (sub === 'inativar') {
+          const motivo = str((await readJson(req)).motivo, 300);
+          if (r.status === 'rascunho') return fail(res, 409, 'Rascunhos não precisam ser inativados: use Excluir rascunho');
+          if (r.inativo_em) return fail(res, 409, 'Este registro já está inativo');
+          if (motivo.length < 5) return fail(res, 400, 'Informe o motivo (mínimo 5 caracteres)');
+          if (!await db.run('UPDATE registros SET inativo_em = ?, inativo_por_nome = ?, inativo_motivo = ? WHERE id = ? AND inativo_em IS NULL', now(), user.nome, motivo, r.id)) return fail(res, 409, 'Este registro já está inativo');
+          await audit(user, 'registro_inativado', r.id); // o motivo (texto clínico) fica só no registro, não na auditoria
+        } else {
+          if (!await db.run('UPDATE registros SET inativo_em = NULL, inativo_por_nome = NULL, inativo_motivo = NULL WHERE id = ? AND inativo_em IS NOT NULL', r.id)) return fail(res, 409, 'Este registro não está inativo');
+          await audit(user, 'registro_reativado', r.id);
+        }
+        return send(res, 200, await reload());
+      }
+      if (sub === 'refazer-avaliacao' && method === 'POST') {
+        if (deny('Apenas a estomaterapeuta inativa a própria avaliação', isEstoma)) return;
+        const motivo = str((await readJson(req)).motivo, 300);
+        if (r.inativo_em || r.status !== 'avaliado' || !r.avaliacao) return fail(res, 409, 'Só é possível inativar uma avaliação já enviada');
+        if (motivo.length < 5) return fail(res, 400, 'Informe o motivo (mínimo 5 caracteres)');
+        const historico = JSON.parse(r.avaliacao_historico || '[]');
+        historico.push({ ...JSON.parse(r.avaliacao), inativadaEm: now(), inativadaPorNome: user.nome, motivo });
+        if (!await db.run("UPDATE registros SET status='enviado', avaliacao=NULL, avaliacao_visto=0, avaliado_em=NULL, reaval_dias=NULL, reaval_em=NULL, reaval_avisada_em=NULL, avaliacao_historico=? WHERE id=? AND status='avaliado' AND inativo_em IS NULL", JSON.stringify(historico), r.id)) return fail(res, 409, 'A avaliação mudou; recarregue a página');
+        await audit(user, 'avaliacao_inativada', r.id);
         return send(res, 200, await reload());
       }
     }
@@ -533,8 +660,10 @@ export const handler = async (req, res) => {
   }
 };
 export const server = http.createServer(handler);
+export const testHooks = { db, avisarReavaliacoes }; // só para os testes automáticos
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const port = process.env.PORT || 3000;
   server.listen(port, () => console.log(`EvoluIA: http://localhost:${port}`));
+  if (!process.env.VERCEL) setInterval(() => avisarReavaliacoes().catch((e) => console.error('lembretes:', e.message)), 60 * 60 * 1000); // a cada hora; cada registro é avisado uma vez
 }

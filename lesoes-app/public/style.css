@@ -25,8 +25,8 @@ body { margin:0; color:var(--tx); font:15.5px/1.5 var(--sans); letter-spacing:-.
   background:radial-gradient(900px 400px at 85% -120px,rgba(224,113,79,.14),transparent 60%),radial-gradient(700px 380px at -10% -80px,rgba(20,153,138,.14),transparent 60%),var(--bg); background-attachment:fixed; min-height:100vh; }
 
 /* Estrutura: barra lateral (computador) | app bar + barra inferior (celular) */
-.logo { width:36px; height:36px; flex:none; border-radius:11px; background:var(--grad); display:grid; place-items:center; box-shadow:var(--glow); }
-.logo svg { width:20px; height:20px; }
+.logo { width:36px; height:36px; flex:none; border-radius:11px; background:#fff; display:grid; place-items:center; box-shadow:var(--glow); overflow:hidden; }
+.logo svg { width:20px; height:20px; } .logo img { width:100%; height:100%; display:block; border-radius:inherit; object-fit:contain; }
 .ic { width:18px; height:18px; flex:none; }
 .appbar { position:sticky; top:0; z-index:10; display:flex; align-items:center; gap:10px; padding:10px 16px; color:#fff; background:var(--hdr); backdrop-filter:saturate(160%) blur(14px); -webkit-backdrop-filter:saturate(160%) blur(14px); border-bottom:1px solid rgba(255,255,255,.08); }
 .appbar::after { content:""; position:absolute; left:0; right:0; bottom:-1px; height:1px; background:var(--grad); opacity:.6; }
@@ -314,3 +314,28 @@ h2 { font-weight:600; letter-spacing:-.015em; } .appbar h1 { font-weight:600; fo
 @media (max-width:520px) { .row.tres > :nth-child(2) { order:3; flex:1 1 100%; } }
 .vz > input[type=date] { padding-right:62px; padding-left:11px; font-size:15px; letter-spacing:-.01em; }
 button[hidden] { display:none !important; }
+
+/* ---- finalizar atendimento, reavaliação, inativação, comorbidades ---- */
+.modal { position:fixed; inset:0; z-index:200; display:grid; place-items:center; padding:16px; background:rgba(10,20,30,.55); backdrop-filter:blur(3px); }
+.modal-box { width:min(460px,100%); max-height:92vh; overflow:auto; padding:20px; background:var(--surface); border:1px solid var(--bd); border-radius:20px; box-shadow:var(--shadow); }
+.modal-box h2 { margin:0 0 8px; font-size:20px; }
+.opcoes { display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 10px; }
+.opc { position:relative; display:inline-flex; margin:0; cursor:pointer; }
+.opc input { position:absolute; opacity:0; inset:0; width:100%; height:100%; margin:0; cursor:pointer; }
+.opc span { display:inline-flex; align-items:center; min-height:40px; padding:0 16px; font-size:14px; font-weight:600; color:var(--tx); background:var(--surface2); border:1px solid var(--bd); border-radius:99px; }
+.opc input:checked + span { color:#fff; background:var(--grad); border-color:transparent; box-shadow:var(--glow); }
+.opc input:focus-visible + span { outline:2px solid var(--c); outline-offset:2px; }
+.chip.com { color:var(--tx); }
+.chip.sit-alta { color:var(--ok); background:var(--okbg); border-color:transparent; }
+.chip.sit-obito { color:var(--mut); background:var(--surface2); }
+.sit { display:flex; flex-direction:column; gap:2px; margin:12px 0; padding:12px 14px; border-radius:14px; border:1px solid var(--bd); background:var(--surface2); }
+.sit span { font-size:13px; color:var(--mut); }
+.sit.sit-alta { background:var(--okbg); border-color:var(--ok); }
+.card.reg.inativo { opacity:.6; } .card.reg.inativo b { text-decoration:line-through; }
+.b-inativo { color:var(--mut); background:var(--surface2); }
+.b-hoje { color:#fff; background:linear-gradient(135deg,#ec8461,#c4472b); }
+.b-atrasada { color:var(--err); background:var(--errbg); }
+.tl-dot.inativo { border-color:var(--bd); border-style:dashed; }
+.aviso-inativo { display:flex; flex-direction:column; align-items:flex-start; gap:6px; border-color:var(--err); background:var(--errbg); } .aviso-inativo span { color:var(--mut); font-size:14px; }
+.hist-aval { padding:10px 0; border-top:1px solid var(--bd); font-size:14px; } .hist-aval:first-of-type { border-top:0; }
+details.card summary { cursor:pointer; }

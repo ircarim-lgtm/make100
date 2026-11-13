@@ -56,6 +56,7 @@ function dadosPaciente(doc, p) {
   if (p.data_nascimento) campo(doc, 'Nascimento', `${dt(p.data_nascimento + 'T12:00:00Z')}${extra ? ' (' + extra + ')' : ''}`);
   else if (extra) campo(doc, 'Dados clínicos', extra);
   if (p.comorbidades) campo(doc, 'Comorbidades / observações', p.comorbidades);
+  if (p.situacao && p.situacao !== 'ativo') campo(doc, 'Atendimento', `Finalizado: ${p.situacao === 'obito' ? 'Óbito' : 'Alta'} em ${dh(p.finalizado_em)}${p.finalizado_por_nome ? ' (' + p.finalizado_por_nome + ')' : ''}${p.finalizado_obs ? ' — ' + p.finalizado_obs : ''}`);
 }
 
 function foto(doc, buf) {
@@ -173,13 +174,19 @@ export function relatorioHistorico({ paciente, registros, fotos, autorizacao, ge
   linha(['Data', 'Localização', 'Classificação', 'Situação'], true);
   for (const r of registros) {
     const av = r.avaliacao ? JSON.parse(r.avaliacao) : null;
-    linha([dt(r.criado_em), r.local || '—', av?.estagio ? ESTAGIO[av.estagio] : '—', av ? 'Avaliado' : 'Aguardando']);
+    linha([dt(r.criado_em), r.local || '—', av?.estagio ? ESTAGIO[av.estagio] : '—', r.inativo_em ? 'Inativado' : av ? 'Avaliado' : 'Aguardando']);
   }
-  registros.forEach((r, i) => {
+  const ativos = registros.filter((r) => !r.inativo_em), inativos = registros.filter((r) => r.inativo_em);
+  ativos.forEach((r, i) => {
     doc.addPage(); doc.y = M;
-    secao(doc, `Registro ${i + 1} de ${registros.length} — ${r.local || 'localização não informada'}`);
+    secao(doc, `Registro ${i + 1} de ${ativos.length} — ${r.local || 'localização não informada'}`);
     blocoLesao(doc, r, fotos.get(r.id));
   });
+  if (inativos.length) { // erros corrigidos: ficam no histórico com o motivo, sem foto nem detalhes clínicos
+    doc.addPage(); doc.y = M;
+    secao(doc, 'Registros inativados (lançados por engano)');
+    for (const r of inativos) campo(doc, `${dt(r.criado_em)} — ${r.local || 'sem localização'}`, `inativado por ${r.inativo_por_nome || '—'} em ${dh(r.inativo_em)}. Motivo: ${r.inativo_motivo || '—'}`);
+  }
   rodape(doc, geradoPor);
   return doc;
 }
