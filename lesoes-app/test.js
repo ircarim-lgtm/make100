@@ -255,7 +255,7 @@ assert.equal((await call('/push/cancelar', { token: ad, method: 'POST', body: { 
 assert.equal((await call('/push/teste', { token: ad, method: 'POST' })).data.enviados, 0); // 'b' falha (410) e é removida; 'a' foi cancelada
 falhaPush = null;
 assert.equal((await call('/push/teste', { token: ad, method: 'POST' })).data.enviados, 0);
-for (const f of ['/apple-touch-icon.png', '/icon-192.png', '/icon-512.png']) assert.equal((await fetch(base + f)).status, 200);
+for (const f of ['/apple-touch-icon-v2.png', '/icon-192-v2.png', '/icon-512-v2.png']) assert.equal((await fetch(base + f)).status, 200);
 
 // --- comorbidades em lista (HAS / DM / DAOP / DAC + outros)
 const comPac = (await call('/pacientes', { token: ex, method: 'POST', body: { ...PAC, prontuario: 'C1', comorbidades: ['DM', 'HAS'], comorbidadesOutros: 'asma' } })).data;
