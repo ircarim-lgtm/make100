@@ -1,6 +1,6 @@
 // Cache apenas do "esqueleto" do app; dados clínicos (API) nunca são guardados offline.
-const CACHE = 'lesoes-v7';
-const SHELL = ['/', '/app.js', '/style.css', '/icon.svg', '/icon-192.png', '/fonts/fraunces-latin-wght-normal.woff2', '/fonts/figtree-latin-wght-normal.woff2', '/manifest.webmanifest'];
+const CACHE = 'lesoes-v8';
+const SHELL = ['/', '/app.js', '/style.css', '/logo.png', '/icon-192.png', '/fonts/fraunces-latin-wght-normal.woff2', '/fonts/figtree-latin-wght-normal.woff2', '/manifest.webmanifest'];
 self.addEventListener('install', (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener('activate', (e) => e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())));
 self.addEventListener('fetch', (e) => {
