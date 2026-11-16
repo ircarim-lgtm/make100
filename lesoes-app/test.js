@@ -296,6 +296,12 @@ assert.deepEqual(await testHooks.avisarReavaliacoes(), { registros: 1, enviados:
 assert.equal(enviosPush.length, 1); assert.equal(enviosPush[0].endpoint, SUB('estoma').endpoint); assert.equal(enviosPush[0].payload.texto, 'Você tem 1 reavaliação para hoje.');
 assert.doesNotMatch(JSON.stringify(enviosPush), /Maria|sacral|C1/);
 assert.deepEqual(await testHooks.avisarReavaliacoes(), { registros: 0, enviados: 0 }); // não repete
+// caso novo enviado pelo examinador: push imediato para a estomaterapeuta (sem dado do paciente)
+enviosPush.length = 0;
+const pushCaso = await novoRegEnviado(comPac.id, 'trocânter');
+assert.equal(enviosPush.filter((e) => e.endpoint === SUB('estoma').endpoint && e.payload.tag === 'caso').length, 1);
+assert.doesNotMatch(JSON.stringify(enviosPush), /Maria|trocânter|C1/);
+await call(`/registros/${pushCaso.id}/inativar`, { token: es, method: 'POST', body: { motivo: 'teste de push' } });
 // agendador: exige o segredo
 assert.equal((await call('/cron/reavaliacoes')).status, 401);
 assert.equal((await call('/cron/reavaliacoes', { token: 'errado' })).status, 401);

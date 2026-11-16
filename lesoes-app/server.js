@@ -70,6 +70,15 @@ async function avisarAdmins(quem, tipo) {
     catch (e) { if (e?.statusCode === 404 || e?.statusCode === 410) await db.run('DELETE FROM push_subs WHERE id = ?', sub.id); }
   }));
 }
+// Avisa as estomaterapeutas (push) que há caso aguardando avaliação. Sem dados de paciente no aviso.
+async function avisarEstomas(quem, texto) {
+  if (!pushAtivo()) return;
+  const subs = await db.all("SELECT s.* FROM push_subs s JOIN users u ON u.id = s.user_id WHERE u.perfil = 'estomaterapeuta' AND u.ativo = 1 AND s.user_id != ?", quem.id);
+  await Promise.allSettled(subs.map(async (sub) => {
+    try { await enviar(sub, { titulo: 'EvoluIA · novo caso', texto, tag: 'caso', url: '/' }); }
+    catch (e) { if (e?.statusCode === 404 || e?.statusCode === 410) await db.run('DELETE FROM push_subs WHERE id = ?', sub.id); }
+  }));
+}
 const PERFIL_TXT = { admin: 'administrador', examinador: 'examinador', estomaterapeuta: 'estomaterapeuta' };
 
 // ---------- Usuários iniciais ----------
@@ -590,6 +599,7 @@ async function handleApi(req, res, url) {
         if (!await db.run("UPDATE registros SET status='enviado', enviado_em=? WHERE id=? AND status='rascunho'", now(), r.id)) return fail(res, 409, 'Registro já foi enviado');
         await audit(user, 'registro_enviado', r.id);
         await notify('Novo caso de lesão por pressão aguardando avaliação da estomaterapeuta.');
+        await avisarEstomas(user, 'Há um novo caso aguardando a sua avaliação.');
         return send(res, 200, await reload());
       }
       if (sub === 'avaliacao' && method === 'POST') {
